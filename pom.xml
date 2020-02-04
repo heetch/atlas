@@ -784,6 +784,8 @@
         <module>addons/hbase-testing-util</module>
         <module>addons/kafka-bridge</module>
 
+        <module>addons/redshift-bridge</module>
+
         <module>distro</module>
     </modules>
 

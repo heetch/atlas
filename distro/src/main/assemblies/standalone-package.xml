@@ -144,6 +144,19 @@
             <outputDirectory>hook</outputDirectory>
         </fileSet>
 
+        <!-- addons/redshift -->
+        <fileSet>
+            <directory>../addons/redshift-bridge/src/bin</directory>
+            <outputDirectory>bin</outputDirectory>
+            <fileMode>0755</fileMode>
+            <directoryMode>0755</directoryMode>
+        </fileSet>
+
+        <fileSet>
+            <directory>../addons/redshift-bridge/target/dependency</directory>
+            <outputDirectory>bridge/redshift/dependency</outputDirectory>
+        </fileSet>
+
         <!-- addons/hbase -->
         <fileSet>
             <directory>../addons/hbase-bridge/src/bin</directory>

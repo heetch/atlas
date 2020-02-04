@@ -30,3 +30,11 @@ Build docker image
 ```
 docker build --build-arg MVN_JOB=8 -t atlas-base .
 ```
+
+Run the docker
+
+```
+docker run -it -p 21000:21000 atlas-base
+```
+
+Login admin/admin on http://localhost:21000
