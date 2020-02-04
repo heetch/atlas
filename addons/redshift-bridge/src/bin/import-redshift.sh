@@ -119,7 +119,7 @@ JAVA_PROPERTIES="${JAVA_PROPERTIES} ${JVM_ARGS}"
 
 echo "Log file for import is $LOGFILE"
 
-"${JAVA_BIN}" ${JAVA_PROPERTIES} -jar /home/ubuntu/atlas-bin/bridge/redshift/redshift-bridge-3.0.0-SNAPSHOT.jar $IMPORT_ARGS
+"${JAVA_BIN}" ${JAVA_PROPERTIES} -jar /home/ubuntu/atlas-bin/bridge/redshift/redshift-bridge-2.0.0.jar $IMPORT_ARGS
 
 RETVAL=$?
 [ $RETVAL -eq 0 ] && echo Redshift Meta Data imported successfully!!!
