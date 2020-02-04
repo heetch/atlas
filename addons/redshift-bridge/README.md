@@ -17,7 +17,7 @@ redshift.password=
 
 Init Entity type :
 ```
-atlas-bin/bin/init_redshift_type.sh
+atlas-bin/bin/init_redshift_type.py
 ```
 
 Import tables, columns from redshift
