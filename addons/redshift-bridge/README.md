@@ -7,12 +7,13 @@ It gets metadata from Redshift, transform it to AtlasEntity and push it to Atlas
 
 When Atlas is started (UI is available).
 
-Add properties in atlas-bin/conf/atlas-application.properties
+Add env var
+`You can skip this part if you ran the docker with theses envs
 ```
-redshift.driver=com.amazon.redshift.jdbc42.Driver
-redshift.url=jdbc:redshift://
-redshift.username=
-redshift.password=
+REDSHIFT_DRIVER=com.amazon.redshift.jdbc42.Driver
+REDSHIFT_URL=jdbc:redshift://
+REDSHIFT_USERNAME=
+REDSHIFT_PASSWORD=
 ```
 
 Init Entity type :
