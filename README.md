@@ -21,20 +21,33 @@ This fork integrate Redshift source as a bridge.
 
 # Getting started
 
-Compile the Atlas as standalone with embedded hbase solr
+Clone repository
+
 ```
-mvn -DskipTests -Pdist,embedded-hbase-solr -Drat.skip=true clean install
+git clone https://github.com/heetch/atlas.git
+cd atlas
+git checkout redshift-demo
 ```
 
 Build docker image
 ```
-docker build --build-arg MVN_JOB=8 -t atlas-base .
+docker build --build-arg MVN_JOB=8 -t atlas-demo .
 ```
 
 Run the docker
 
 ```
-docker run -it -p 21000:21000 atlas-base
+docker run --rm -it -p 21000:21000 --name atlas-demo atlas-demo
 ```
 
+Atlas takes time to startup. Do not worry and wait :)
+
 Login admin/admin on http://localhost:21000
+
+Inside the container
+```
+docker exec -it atlas-demo bash
+```
+
+Follow theses instructions :
+https://github.com/heetch/atlas/blob/redshift-release-2.0.0-rc2/addons/redshift-bridge/README.md

@@ -43,16 +43,18 @@ USER ubuntu
 # Working directory
 WORKDIR /home/ubuntu
 
-RUN mkdir -p atlas/distro
-
-COPY distro atlas/distro
-
 # Memory requirements & -Drat.skip=true to disable license check
 ENV MAVEN_OPTS "-Xms2g -Xmx2g -Drat.skip=true"
 # RUN export MAVEN_OPTS="-Xms2g -Xmx2g"
 
+# Pull down Atlas and build it into /root/atlas-bin.
+RUN git clone https://github.com/heetch/atlas.git -b redshift-release-2.0.0-rc2
+
+RUN echo 'package-lock=false' >> ./atlas/.npmrc
+RUN echo 'package-lock.json' >> ./atlas/.gitignore
+
 # Remove -DskipTests if unit tests are to be included
-#RUN mvn clean -T $MVN_JOB install -DskipTests -Pdist,embedded-hbase-solr -f ./atlas/pom.xml
+RUN mvn -T $MVN_JOB -DskipTests -Pdist,embedded-hbase-solr -f ./atlas/pom.xml clean install
 RUN mkdir -p atlas-bin
 RUN tar xzf /home/ubuntu/atlas/distro/target/*bin.tar.gz --strip-components 1 -C /home/ubuntu/atlas-bin
 
@@ -62,7 +64,7 @@ ENV MANAGE_LOCAL_HBASE true
 ENV PATH /home/ubuntu/atlas-bin/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Copy fat jar
-COPY addons/redshift-bridge/target/redshift-bridge-2.0.0.jar atlas-bin/bridge/redshift
+RUN mv atlas/addons/redshift-bridge/target/redshift-bridge-2.0.0.jar atlas-bin/bridge/redshift
 
 EXPOSE 21000
 
