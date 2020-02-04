@@ -37,7 +37,13 @@ docker build --build-arg MVN_JOB=8 -t atlas-demo .
 Run the docker
 
 ```
-docker run --rm -it -p 21000:21000 --name atlas-demo atlas-demo
+docker run --rm -it \
+        -e REDSHIFT_DRIVER=com.amazon.redshift.jdbc42.Driver \
+        -e REDSHIFT_URL=jdbc:redshift:// \
+        -e REDSHIFT_USERNAME= \
+        -e REDSHIFT_PASSWORD= \
+        -p 21000:21000 \
+        --name atlas-demo atlas-demo
 ```
 
 Atlas takes time to startup. Do not worry and wait :)
