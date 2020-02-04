@@ -8,7 +8,8 @@ It gets metadata from Redshift, transform it to AtlasEntity and push it to Atlas
 When Atlas is started (UI is available).
 
 Add env var
-`You can skip this part if you ran the docker with theses envs
+
+`You can skip this part if you ran the docker with theses envs`
 ```
 REDSHIFT_DRIVER=com.amazon.redshift.jdbc42.Driver
 REDSHIFT_URL=jdbc:redshift://
