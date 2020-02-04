@@ -27,16 +27,12 @@ import org.apache.atlas.model.instance.*;
 import org.apache.atlas.model.instance.AtlasEntity.AtlasEntityWithExtInfo;
 import org.apache.atlas.redshift.model.SvvColumn;
 import org.apache.atlas.utils.AuthenticationUtil;
-import org.apache.commons.cli.BasicParser;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.configuration.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -61,9 +57,6 @@ public class RedshiftBridge {
     private String redshiftUsername;
     private String redshiftPassword;
 
-    public static final String CLUSTER_NAME_KEY = "atlas.cluster.name";
-    public static final String REDSHIFT_METADATA_NAMESPACE = "atlas.metadata.namespace";
-    public static final String DEFAULT_CLUSTER_NAME = "primary";
     public static final String ATLAS_ENDPOINT = "atlas.rest.address";
 
     private static final int EXIT_CODE_SUCCESS = 0;
@@ -127,7 +120,7 @@ public class RedshiftBridge {
             System.out.println("Failed to parse arguments. Error: " + e.getMessage());
             printUsage();
         } catch(Exception e) {
-            System.out.println("Import failed" +  e.toString());
+            System.out.println("Import failed" +  e.getStackTrace().toString());
         } finally {
             if( atlasClientV2 !=null) {
                 atlasClientV2.close();
@@ -137,27 +130,11 @@ public class RedshiftBridge {
     }
 
     public RedshiftBridge(Configuration atlasConf, AtlasClientV2 atlasClientV2) {
-        this.redshiftDriver = getRedshiftDriver(atlasConf);
-        this.redshiftUrl = getRedshiftUrl(atlasConf);
-        this.redshiftUsername = getRedshiftUsername(atlasConf);
-        this.redshiftPassword = getRedshiftPassword(atlasConf);
+        this.redshiftDriver = atlasConf.getString(REDSHIFT_DRIVER);
+        this.redshiftUrl = atlasConf.getString(REDSHIFT_URL);
+        this.redshiftUsername = atlasConf.getString(REDSHIFT_USERNAME);
+        this.redshiftPassword = atlasConf.getString(REDSHIFT_PASSWORD);
         this.atlasClientV2 = atlasClientV2;
-    }
-
-    private String getRedshiftDriver(Configuration config) {
-        return config.getString(REDSHIFT_DRIVER);
-    }
-
-    private String getRedshiftUrl(Configuration config) {
-        return config.getString(REDSHIFT_URL);
-    }
-
-    private String getRedshiftUsername(Configuration config) {
-        return config.getString(REDSHIFT_USERNAME);
-    }
-
-    private String getRedshiftPassword(Configuration config) {
-        return config.getString(REDSHIFT_PASSWORD);
     }
 
     private static void printUsage() {
