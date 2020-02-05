@@ -91,14 +91,7 @@ public class KafkaBridge {
         AtlasClientV2 atlasClientV2 = null;
 
         try {
-            Options options = new Options();
-            options.addOption("t","topic", true, "topic");
-            options.addOption("f", "filename", true, "filename");
 
-            CommandLineParser parser        = new BasicParser();
-            CommandLine       cmd           = parser.parse(options, args);
-            String            topicToImport = cmd.getOptionValue("t");
-            String            fileToImport  = cmd.getOptionValue("f");
             Configuration     atlasConf     = ApplicationProperties.get();
             String[]          urls          = atlasConf.getStringArray(ATLAS_ENDPOINT);
 
@@ -106,10 +99,9 @@ public class KafkaBridge {
                 urls = new String[] { DEFAULT_ATLAS_URL };
             }
 
-
             if (!AuthenticationUtil.isKerberosAuthenticationEnabled()) {
-                String[] basicAuthUsernamePassword = AuthenticationUtil.getBasicAuthenticationInput();
-
+                //String[] basicAuthUsernamePassword = AuthenticationUtil.getBasicAuthenticationInput();
+                String[] basicAuthUsernamePassword = new String[]{"admin", "admin"};
                 atlasClientV2 = new AtlasClientV2(urls, basicAuthUsernamePassword);
             } else {
                 UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
@@ -119,28 +111,9 @@ public class KafkaBridge {
 
             KafkaBridge importer = new KafkaBridge(atlasConf, atlasClientV2);
 
-            if (StringUtils.isNotEmpty(fileToImport)) {
-                File f = new File(fileToImport);
+            importer.importTopic();
 
-                if (f.exists() && f.canRead()) {
-                    BufferedReader br   = new BufferedReader(new FileReader(f));
-                    String         line = null;
-
-                    while((line = br.readLine()) != null) {
-                        topicToImport = line.trim();
-
-                        importer.importTopic(topicToImport);
-                    }
-
-                    exitCode = EXIT_CODE_SUCCESS;
-                } else {
-                    LOG.error("Failed to read the file");
-                }
-            } else {
-                importer.importTopic(topicToImport);
-
-                exitCode = EXIT_CODE_SUCCESS;
-            }
+            exitCode = EXIT_CODE_SUCCESS;
         } catch(ParseException e) {
             LOG.error("Failed to parse arguments. Error: ", e.getMessage());
             printUsage();
@@ -169,12 +142,23 @@ public class KafkaBridge {
         this.availableTopics = scala.collection.JavaConversions.seqAsJavaList(zkUtils.getAllTopics());
     }
 
+    public void importTopic() throws Exception {
+        List<String> topics = availableTopics;
+
+        if (CollectionUtils.isNotEmpty(topics)) {
+            for(String topic : topics) {
+                System.out.println("topic : " + topic);
+                //createOrUpdateTopic(topic);
+            }
+        }
+    }
+
     public void importTopic(String topicToImport) throws Exception {
         List<String> topics = availableTopics;
 
         if (StringUtils.isNotEmpty(topicToImport)) {
             List<String> topics_subset = new ArrayList<>();
-            for(String topic : topics) {
+            for (String topic : topics) {
                 if (Pattern.compile(topicToImport).matcher(topic).matches()) {
                     topics_subset.add(topic);
                 }
@@ -189,7 +173,7 @@ public class KafkaBridge {
         }
     }
 
-    @VisibleForTesting
+            @VisibleForTesting
     AtlasEntityWithExtInfo createOrUpdateTopic(String topic) throws Exception {
         String                 topicQualifiedName = getTopicQualifiedName(clusterName, topic);
         AtlasEntityWithExtInfo topicEntity        = findTopicEntityInAtlas(topicQualifiedName);
