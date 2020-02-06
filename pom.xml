@@ -2051,6 +2051,8 @@
                         <exclude>**/*rebel*.xml</exclude>
                         <exclude>**/*rebel*.xml.bak</exclude>
                         <exclude>**/test/resources/**</exclude>
+                        <exclude>Dockerfile</exclude>
+                        <exclude>.drone.yml</exclude>
                     </excludes>
                 </configuration>
                 <executions>
