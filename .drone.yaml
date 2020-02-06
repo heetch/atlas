@@ -1,0 +1,9 @@
+pipeline:
+  build_docker:
+    image: plugins/docker
+    registry: quay.io
+    repo: quay.io/heetch/atlas
+    context: .
+    dockerfile: Dockerfile
+    when:
+      event: tag
