@@ -1,16 +1,16 @@
 kind: pipeline
 type: docker
-name: default
+name: atlas
 
 steps:
-  - name: docker
+  - name: build_docker
     image: plugins/docker
     settings:
+      registry: quay.io
+      repo: quay.io/heetch/atlas
       username:
         from_secret: docker_username
       password:
         from_secret: docker_password
-      repo: quay.io/heetch/atlas
     when:
       event: tag
-
