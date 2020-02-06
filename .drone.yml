@@ -1,9 +1,16 @@
-pipeline:
-  build_docker:
+kind: pipeline
+type: docker
+name: default
+
+steps:
+  - name: docker
     image: plugins/docker
-    registry: quay.io
-    repo: quay.io/heetch/atlas
-    context: .
-    dockerfile: Dockerfile
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: quay.io/heetch/atlas
     when:
       event: tag
+
