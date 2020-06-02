@@ -20,6 +20,7 @@ Atlas supports following authentication methods
    * **Kerberos**
    * **LDAP**
    * **Keycloak (OpenID Connect / OAUTH2)**
+   * **PAM**
 
 
 Following properties should be set true to enable the authentication of that type in `atlas-application.properties` file.
@@ -115,7 +116,7 @@ atlas.authentication.method.ldap.ad.default.role=ROLE_USER`}
 
 <SyntaxHighlighter wrapLines={true} language="shell" style={theme.dark}>
 {`atlas.authentication.method.ldap.url=ldap://<Ldap server ip>:389
-atlas.authentication.method.ldap.userDNpattern=uid={0],ou=users,dc=example,dc=com
+atlas.authentication.method.ldap.userDNpattern=uid={0},ou=users,dc=example,dc=com
 atlas.authentication.method.ldap.groupSearchBase=dc=example,dc=com
 atlas.authentication.method.ldap.groupSearchFilter=(member=cn={0},ou=users,dc=example,dc=com
 atlas.authentication.method.ldap.groupRoleAttribute=cn
@@ -153,3 +154,26 @@ Setup you keycloak.json per instructions from Keycloak. Make sure to include `"p
   "autodetect-bearer-only": true
 }`}
  </SyntaxHighlighter>
+
+ ### PAM.
+
+The prerequisite for enabling PAM authentication, is to have login service file in */etc/pam.d/*
+
+To enable the PAM authentication mode in Atlas.
+
+* Set the atlas property `atlas.authentication.method.pam` to true in `atlas-application.properties`.
+
+<SyntaxHighlighter wrapLines={true} language="shell" style={theme.dark}>
+{
+`atlas.authentication.method.pam=true`
+}
+</SyntaxHighlighter>
+
+* Set the property `atlas.authentication.method.pam.service=<login service>` to use desired PAM login service.
+  For example, set below property to use `/etc/pam.d/login`.
+
+<SyntaxHighlighter wrapLines={true} language="shell" style={theme.dark}>
+{
+ `atlas.authentication.method.pam.service=login`
+}
+</SyntaxHighlighter>

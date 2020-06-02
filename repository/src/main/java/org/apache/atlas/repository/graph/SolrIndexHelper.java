@@ -23,7 +23,9 @@ import org.apache.atlas.model.typedef.AtlasStructDef.AtlasAttributeDef;
 import org.apache.atlas.repository.Constants;
 import org.apache.atlas.repository.graphdb.AtlasGraph;
 import org.apache.atlas.repository.graphdb.AtlasGraphIndexClient;
+import org.apache.atlas.type.AtlasBusinessMetadataType;
 import org.apache.atlas.type.AtlasEntityType;
+import org.apache.atlas.type.AtlasStructType;
 import org.apache.atlas.type.AtlasStructType.AtlasAttribute;
 import org.apache.atlas.type.AtlasTypeRegistry;
 import org.apache.atlas.util.AtlasRepositoryConfiguration;
@@ -66,10 +68,16 @@ public class SolrIndexHelper implements IndexChangeListener {
 
     @Override
     public void onChange(ChangedTypeDefs changedTypeDefs) {
-        if (!AtlasRepositoryConfiguration.isFreeTextSearchEnabled() ||
-            changedTypeDefs == null || !changedTypeDefs.hasEntityDef()) { // nothing to do if there are no changes to entity-defs
+        if (!AtlasRepositoryConfiguration.isFreeTextSearchEnabled()) {
             return;
         }
+
+        if (changedTypeDefs == null || !(changedTypeDefs.hasEntityDef() || changedTypeDefs.hasBusinessMetadataDef())) {
+            LOG.info("SolrIndexHelper.onChange(): no change in entity/business-metadata types. No updates needed.");
+
+            return;
+        }
+
         if(initializationCompleted) {
             try {
                 AtlasGraph            graph                          = AtlasGraphProvider.getGraphInstance();
@@ -117,41 +125,39 @@ public class SolrIndexHelper implements IndexChangeListener {
     }
 
     private Map<String, Integer> geIndexFieldNamesWithSearchWeights() {
-        Map<String, Integer>        ret         = new HashMap<>();
-        Collection<AtlasEntityType> entityTypes = typeRegistry.getAllEntityTypes();
+        Map<String, Integer> ret = new HashMap<>();
 
         //the following properties are specially added manually.
         //as, they don't come in the entity definitions as attributes.
-
         ret.put(typeRegistry.getIndexFieldName(CLASSIFICATION_TEXT_KEY), SEARCHWEIGHT_FOR_CLASSIFICATIONS);
         ret.put(typeRegistry.getIndexFieldName(LABELS_PROPERTY_KEY), SEARCHWEIGHT_FOR_LABELS);
         ret.put(typeRegistry.getIndexFieldName(CUSTOM_ATTRIBUTES_PROPERTY_KEY), SEARCHWEIGHT_FOR_CUSTOM_ATTRS);
         ret.put(typeRegistry.getIndexFieldName(TYPE_NAME_PROPERTY_KEY), SEARCHWEIGHT_FOR_TYPENAME);
 
-        if (!CollectionUtils.isNotEmpty(entityTypes)) {
-            return ret;
-        }
-
-        for (AtlasEntityType entityType : entityTypes) {
+        for (AtlasEntityType entityType : typeRegistry.getAllEntityTypes()) {
             if (entityType.isInternalType()) {
                 continue;
             }
 
-            processEntityType(ret, entityType);
+            processType(ret, entityType);
+        }
+
+        for (AtlasBusinessMetadataType businessMetadataType : typeRegistry.getAllBusinessMetadataTypes()) {
+            processType(ret, businessMetadataType);
         }
 
         return ret;
     }
 
-    private void processEntityType(Map<String, Integer> indexFieldNameWithSearchWeights, AtlasEntityType entityType) {
-        List<AtlasAttributeDef> attributes = entityType.getEntityDef().getAttributeDefs();
+    private void processType(Map<String, Integer> indexFieldNameWithSearchWeights, AtlasStructType structType) {
+        List<AtlasAttributeDef> attributes = structType.getStructDef().getAttributeDefs();
 
-        if(CollectionUtils.isNotEmpty(attributes)) {
+        if (CollectionUtils.isNotEmpty(attributes)) {
             for (AtlasAttributeDef attribute : attributes) {
-                processAttribute(indexFieldNameWithSearchWeights, entityType.getAttribute(attribute.getName()));
+                processAttribute(indexFieldNameWithSearchWeights, structType.getAttribute(attribute.getName()));
             }
-        }  else {
-            LOG.debug("No attributes are defined for entity {}", entityType.getTypeName());
+        } else {
+            LOG.debug("No attributes are defined for type {}", structType.getTypeName());
         }
     }
 

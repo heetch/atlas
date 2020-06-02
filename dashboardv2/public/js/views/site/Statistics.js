@@ -28,10 +28,11 @@ define(['require',
     'collection/VTagList',
     'utils/CommonViewFunction',
     'utils/Enums',
+    'utils/MigrationEnums',
     'moment',
     'utils/Utils',
     'moment-timezone'
-], function(require, Backbone, StatTmpl, StatsNotiTable, TopicOffsetTable, EntityTable, Modal, VCommon, UrlLinks, VTagList, CommonViewFunction, Enums, moment, Utils) {
+], function(require, Backbone, StatTmpl, StatsNotiTable, TopicOffsetTable, EntityTable, Modal, VCommon, UrlLinks, VTagList, CommonViewFunction, Enums, MigrationEnums, moment, Utils) {
     'use strict';
 
     var StatisticsView = Backbone.Marionette.LayoutView.extend(
@@ -55,10 +56,22 @@ define(['require',
                 osCard: "[data-id='os-card']",
                 runtimeCard: "[data-id='runtime-card']",
                 memoryCard: "[data-id='memory-card']",
-                memoryPoolUsage: "[data-id='memory-pool-usage-card']"
+                memoryPoolUsage: "[data-id='memory-pool-usage-card']",
+                statisticsRefresh: "[data-id='statisticsRefresh']",
+                notificationDetails: "[data-id='notificationDetails']",
+                migrationProgressBar: "[data-id='migrationProgressBar']",
+                migrationProgressBarValue: "[data-id='migrationProgressBarValue']"
             },
             /** ui events hash */
-            events: function() {},
+            events: function() {
+                var events = {};
+                events["click " + this.ui.statisticsRefresh] = function(e) {
+                    this.showLoader();
+                    this.fetchMetricData();
+                    this.fetchStatusData();
+                };
+                return events;
+            },
             /**
              * intialize a new AboutAtlasView Layout
              * @constructs
@@ -67,58 +80,138 @@ define(['require',
                 _.extend(this, options);
                 var that = this;
                 this.DATA_MAX_LENGTH = 25;
-                var modal = new Modal({
-                    title: 'Statistics',
-                    content: this,
-                    okCloses: true,
-                    okText: "Close",
-                    showFooter: true,
-                    allowCancel: false,
-                    width: "60%",
-                    headerButtons: [{
-                        title: "Refresh Data",
-                        btnClass: "fa fa-refresh",
-                        onClick: function() {
-                            modal.$el.find('.header-button .fa-refresh').tooltip('hide').prop('disabled', true).addClass('fa-spin');
-                            that.fetchMetricData({ update: true });
-                        }
-                    }]
-                }).open();
+                this.loaderCount = 0;
+                if (this.isMigrationView) {
+                    this.migrationImportStatus = new VTagList();
+                    this.migrationImportStatus.url = UrlLinks.migrationStatusApiUrl();
+                } else {
+                    var modal = new Modal({
+                        title: 'Statistics',
+                        content: this,
+                        okCloses: true,
+                        okText: "Close",
+                        showFooter: true,
+                        allowCancel: false,
+                        width: "60%",
+                        headerButtons: [{
+                            title: "Refresh Data",
+                            btnClass: "fa fa-refresh",
+                            onClick: function() {
+                                modal.$el.find('.header-button .fa-refresh').tooltip('hide').prop('disabled', true).addClass('fa-spin');
+                                that.fetchMetricData({ update: true });
+                            }
+                        }]
+                    });
+                    modal.on('closeModal', function() {
+                        modal.trigger('cancel');
+                    });
+                    this.modal = modal;
+                    modal.open();
+                }
 
-                modal.on('closeModal', function() {
-                    modal.trigger('cancel');
-                });
-                this.modal = modal;
             },
             bindEvents: function() {
                 var that = this;
-                this.$el.on('click', '.linkClicked', function() {
-                    that.modal.close();
-                })
+                if (this.modal) {
+                    this.$el.on('click', '.linkClicked', function() {
+                        that.modal.close();
+                    })
+                }
+            },
+            fetchStatusData: function() {
+                var that = this;
+                ++this.loaderCount;
+                that.migrationImportStatus.fetch({
+                    success: function(data) {
+                        var data = _.first(data.toJSON()),
+                            migrationStatus = data.MigrationStatus || null,
+                            operationStatus = migrationStatus.operationStatus,
+                            showProgress = true,
+                            totalProgress = 0,
+                            progressMessage = "";
+                        if (migrationStatus) {
+                            if (MigrationEnums.migrationStatus[operationStatus] === "DONE") {
+                                showProgress = false;
+                            } else if (MigrationEnums.migrationStatus[operationStatus] === "IN_PROGRESS" || MigrationEnums.migrationStatus[operationStatus] === "STARTED") {
+                                var currentIndex = migrationStatus.currentIndex || 0,
+                                    totalCount = migrationStatus.totalCount || 0;
+                                totalProgress = Math.ceil((migrationStatus.currentIndex / migrationStatus.totalCount) * 100)
+                                progressMessage = totalProgress + "%";
+                                that.ui.migrationProgressBar.removeClass("progress-bar-danger");
+                                that.ui.migrationProgressBar.addClass("progress-bar-success");
+                            } else if (MigrationEnums.migrationStatus[operationStatus] === "FAIL") {
+                                totalProgress = "100";
+                                progressMessage = "Failed";
+                                that.ui.migrationProgressBar.addClass("progress-bar-danger");
+                                that.ui.migrationProgressBar.removeClass("progress-bar-success");
+                            }
+                            if (showProgress) {
+                                that.$el.find(".statistics-header>.progress").removeClass("hide");
+                                that.$el.find(".statistics-header>.successStatus").addClass("hide");
+                                that.ui.migrationProgressBar.css({ width: totalProgress + '%' });
+                                that.ui.migrationProgressBarValue.text(progressMessage);
+                            } else {
+                                that.$el.find(".statistics-header>.progress").addClass("hide");
+                                that.$el.find(".statistics-header>.successStatus").removeClass("hide");
+                            }
+                        }
+
+                    },
+                    complete: function() {
+                        --that.loaderCount;
+                        that.hideLoader();
+                    }
+                });
             },
             fetchMetricData: function(options) {
                 var that = this;
+                ++this.loaderCount;
                 this.metricCollection.fetch({
-                    skipDefaultError: true,
                     success: function(data) {
                         var data = _.first(data.toJSON());
                         that.renderStats({ valueObject: data.general.stats, dataObject: data.general });
                         that.renderEntities({ data: data });
                         that.renderSystemDeatils({ data: data });
                         that.renderClassifications({ data: data });
-                        that.$('.statsContainer,.statsNotificationContainer').removeClass('hide');
-                        that.$('.statsLoader,.statsNotificationLoader').removeClass('show');
                         if (options && options.update) {
-                            that.modal.$el.find('.header-button .fa-refresh').prop('disabled', false).removeClass('fa-spin');
+                            if (that.modal) {
+                                that.modal.$el.find('.header-button .fa-refresh').prop('disabled', false).removeClass('fa-spin');
+                            }
                             Utils.notifySuccess({
                                 content: "Metric data is refreshed"
                             })
                         }
+                    },
+                    complete: function() {
+                        --that.loaderCount;
+                        that.hideLoader()
                     }
                 });
             },
+            hideLoader: function() {
+                if (this.loaderCount === 0) {
+                    var className = ".statsContainer";
+                    if (this.isMigrationView) {
+                        className += ",.statistics-header";
+                    }
+                    this.$(className).removeClass('hide');
+                    this.$('.statsLoader').removeClass('show');
+                }
+            },
+            showLoader: function() {
+                var className = ".statsContainer";
+                if (this.isMigrationView) {
+                    className += ",.statistics-header";
+                }
+                this.$(className).addClass('hide');
+                this.$('.statsLoader').addClass('show');
+            },
             onRender: function() {
                 this.bindEvents();
+                if (this.isMigrationView) {
+                    this.showLoader();
+                    this.fetchStatusData();
+                }
                 this.fetchMetricData();
             },
             closePanel: function(options) {
@@ -274,7 +367,7 @@ define(['require',
                         });
                         return tableBody;
                     };
-                if (data.Notification) {
+                if (!that.isMigrationView && data.Notification) {
                     var tableCol = [{
                                 label: "Total <br> (from " + (that.getValue({
                                     "value": data.Server["startTimeStamp"],
@@ -342,6 +435,7 @@ define(['require',
                             }
                         })
                     )
+                    that.ui.notificationDetails.removeClass('hide');
                 }
 
                 if (data.Server) {
@@ -383,7 +477,8 @@ define(['require',
                     var memoryTable = CommonViewFunction.propertyTable({
                         scope: this,
                         formatStringVal: true,
-                        valueObject: systemMemoryData
+                        valueObject: systemMemoryData,
+                        numberFormat: _.numberFormatWithBytes
                     });
                     that.ui.memoryCard.html(
                         memoryTable);

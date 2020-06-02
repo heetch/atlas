@@ -25,6 +25,7 @@ import org.apache.atlas.model.instance.AtlasEntity.AtlasEntityExtInfo;
 import org.apache.atlas.model.instance.AtlasEntity.AtlasEntityWithExtInfo;
 import org.apache.atlas.model.instance.AtlasObjectId;
 import org.apache.atlas.model.instance.AtlasStruct;
+import org.apache.atlas.repository.graphdb.AtlasGraph;
 import org.apache.atlas.repository.store.graph.v2.EntityGraphRetriever;
 import org.apache.atlas.type.AtlasArrayType;
 import org.apache.atlas.type.AtlasBuiltInTypes;
@@ -53,7 +54,7 @@ import java.util.Set;
 
 
 @Component
-public class FullTextMapperV2 {
+public class FullTextMapperV2 implements IFullTextMapper {
     private static final Logger LOG = LoggerFactory.getLogger(FullTextMapperV2.class);
 
     private static final String FULL_TEXT_DELIMITER                  = " ";
@@ -68,13 +69,13 @@ public class FullTextMapperV2 {
 
 
     @Inject
-    public FullTextMapperV2(AtlasTypeRegistry typeRegistry, Configuration configuration) {
+    public FullTextMapperV2(AtlasGraph atlasGraph, AtlasTypeRegistry typeRegistry, Configuration configuration) {
         this.typeRegistry  = typeRegistry;
         this.configuration = configuration;
 
         followReferences = this.configuration != null && this.configuration.getBoolean(FULL_TEXT_FOLLOW_REFERENCES, false);
         // If followReferences = false then ignore relationship attr loading
-        entityGraphRetriever = new EntityGraphRetriever(typeRegistry, !followReferences);
+        entityGraphRetriever = new EntityGraphRetriever(atlasGraph, typeRegistry, !followReferences);
     }
 
     /**
@@ -84,6 +85,8 @@ public class FullTextMapperV2 {
      * @return Full text string ONLY for the added classifications
      * @throws AtlasBaseException
      */
+
+    @Override
     public String getIndexTextForClassifications(String guid, List<AtlasClassification> classifications) throws AtlasBaseException {
         String                       ret     = null;
         final AtlasEntityWithExtInfo entityWithExtInfo;
@@ -120,6 +123,7 @@ public class FullTextMapperV2 {
         return ret;
     }
 
+    @Override
     public String getIndexTextForEntity(String guid) throws AtlasBaseException {
         String                   ret    = null;
         final AtlasEntity        entity;
@@ -150,6 +154,7 @@ public class FullTextMapperV2 {
         return ret;
     }
 
+    @Override
     public String getClassificationTextForEntity(AtlasEntity entity) throws AtlasBaseException {
         String                   ret    = null;
 
@@ -271,10 +276,12 @@ public class FullTextMapperV2 {
         }
     }
 
+    @Override
     public AtlasEntity getAndCacheEntity(String guid) throws AtlasBaseException {
         return getAndCacheEntity(guid, true);
     }
 
+    @Override
     public AtlasEntity  getAndCacheEntity(String guid, boolean includeReferences) throws AtlasBaseException {
         RequestContext context = RequestContext.get();
         AtlasEntity    entity  = context.getEntity(guid);
@@ -294,6 +301,7 @@ public class FullTextMapperV2 {
         return entity;
     }
 
+    @Override
     public AtlasEntityWithExtInfo getAndCacheEntityWithExtInfo(String guid) throws AtlasBaseException {
         RequestContext         context           = RequestContext.get();
         AtlasEntityWithExtInfo entityWithExtInfo = context.getEntityWithExtInfo(guid);

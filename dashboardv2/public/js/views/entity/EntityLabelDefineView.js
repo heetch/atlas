@@ -44,18 +44,20 @@ define(['require',
         ui: {
             addLabelOptions: "[data-id='addLabelOptions']",
             addLabels: "[data-id='addLabels']",
-            saveLabels: "[data-id='saveLabels']"
+            saveLabels: "[data-id='saveLabels']",
+            cancel: "[data-id='cancel']"
         },
         events: function() {
             var events = {};
             events["change " + this.ui.addLabelOptions] = 'onChangeLabelChange';
             events["click " + this.ui.addLabels] = 'handleBtnClick';
             events["click " + this.ui.saveLabels] = 'saveUserDefinedLabels';
+            events["click " + this.ui.cancel] = 'onCancelClick';
             return events;
         },
         initialize: function(options) {
             var self = this;
-            _.extend(this, _.pick(options, 'entity', 'customFilter'));
+            _.extend(this, _.pick(options, 'entity', 'customFilter', 'renderAuditTableLayoutView'));
             this.swapItem = false, this.saveLabels = false;
             this.readOnlyEntity = this.customFilter === undefined ? Enums.entityStateReadOnly[this.entity.status] : this.customFilter;
             this.entityModel = new VEntity(this.entity);
@@ -74,7 +76,7 @@ define(['require',
                 });
             this.ui.addLabelOptions.html(str);
             var getLabelData = function(data, selectedData) {
-                if (data.suggestions) {
+                if (data.suggestions.length) {
                     return _.map(data.suggestions, function(name, index) {
                         var findValue = _.find(selectedData, { id: name })
                         if (findValue) {
@@ -87,7 +89,8 @@ define(['require',
                         }
                     });
                 } else {
-                    return [];
+                    var findValue = _.find(selectedData, { id: data.prefixString })
+                    return findValue ? [findValue] : [];
                 }
             };
             this.ui.addLabelOptions.select2({
@@ -110,6 +113,12 @@ define(['require',
                     },
                     cache: true
                 },
+                createTag: function(data) {
+                    var found = _.find(this.$element.select2("data"), { id: data.term });
+                    if (!found) {
+                        return { id: data.term, text: data.term };
+                    }
+                },
                 templateResult: this.formatResultSearch
             });
         },
@@ -131,6 +140,12 @@ define(['require',
             } else {
                 this.saveLabels = false;
             }
+            this.render();
+        },
+        onCancelClick: function() {
+            this.labels = this.entityModel.get("labels") || [];
+            this.swapItem = false;
+            this.saveLabels = false;
             this.render();
         },
         saveUserDefinedLabels: function() {
@@ -157,6 +172,9 @@ define(['require',
                         that.swapItem = false;
                         that.saveLabels = false;
                         that.render();
+                        if (that.renderAuditTableLayoutView) {
+                            that.renderAuditTableLayoutView();
+                        }
                     },
                     error: function(e) {
                         that.ui.saveLabels && that.ui.saveLabels.length > 0 && that.ui.saveLabels[0].setAttribute("disabled", false);

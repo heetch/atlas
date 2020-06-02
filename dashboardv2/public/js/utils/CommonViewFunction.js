@@ -24,18 +24,25 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
         require(['models/VTag'], function(VTag) {
             if (options && options.guid && options.tagName) {
                 var tagModel = new VTag(),
+                    noticeRef = null,
                     notifyObj = {
                         modal: true,
+                        okCloses: false,
+                        okShowLoader: true,
                         text: options.msg,
                         title: options.titleMessage,
                         okText: options.okText,
-                        ok: function(argument) {
+                        ok: function(notice) {
+                            noticeRef = notice;
                             if (options.showLoader) {
                                 options.showLoader();
                             }
                             tagModel.deleteAssociation(options.guid, options.tagName, options.associatedGuid, {
-                                skipDefaultError: true,
+                                defaultErrorMessage: options.tagName + Messages.deleteErrorMessage,
                                 success: function(data) {
+                                    if (noticeRef) {
+                                        noticeRef.remove();
+                                    }
                                     Utils.notifySuccess({
                                         content: "Classification " + options.tagName + Messages.getAbbreviationMsg(false, 'removeSuccessMessage')
                                     });
@@ -48,16 +55,12 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
 
                                 },
                                 cust_error: function(model, response) {
-                                    var message = options.tagName + Messages.deleteErrorMessage;
-                                    if (response && response.responseJSON) {
-                                        message = response.responseJSON.errorMessage;
+                                    if (noticeRef) {
+                                        noticeRef.hideButtonLoader();
                                     }
                                     if (options.hideLoader) {
                                         options.hideLoader();
                                     }
-                                    Utils.notifyError({
-                                        content: message
-                                    });
                                 }
                             });
                         },
@@ -470,7 +473,7 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                                     var classificationDef = classificationDefCollection.fullCollection.findWhere({ 'name': value[skey].classification }),
                                         attributeDefs = [];
                                     if (classificationDef) {
-                                        Utils.getNestedSuperTypeObj({
+                                        attributeDefs = Utils.getNestedSuperTypeObj({
                                             collection: classificationDefCollection,
                                             attrMerge: true,
                                             data: classificationDef.toJSON()
@@ -486,7 +489,7 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                                     var entityDef = entityDefCollection.fullCollection.findWhere({ 'name': value[skey].typeName }),
                                         attributeDefs = [];
                                     if (entityDef) {
-                                        Utils.getNestedSuperTypeObj({
+                                        attributeDefs = Utils.getNestedSuperTypeObj({
                                             collection: entityDefCollection,
                                             attrMerge: true,
                                             data: entityDef.toJSON()
@@ -628,13 +631,13 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                                 rule = {};
                             if (apiObj) {
                                 rule = { attributeName: temp[0], operator: mapUiOperatorToAPI(temp[1]), attributeValue: _.trim(temp[2]) }
-                                rule.attributeValue = rule.type === 'date' && formatDate && rule.attributeValue.length ? moment(parseInt(rule.attributeValue)).format('MM/DD/YYYY h:mm A') : rule.attributeValue;
+                                rule.attributeValue = rule.type === 'date' && formatDate && rule.attributeValue.length ? moment(parseInt(rule.attributeValue)).format(Globals.dateTimeFormat) : rule.attributeValue;
                             } else {
                                 rule = { id: temp[0], operator: temp[1], value: _.trim(temp[2]) }
                                 if (temp[3]) {
                                     rule['type'] = temp[3];
                                 }
-                                rule.value = rule.type === 'date' && formatDate && rule.value.length ? moment(parseInt(rule.value)).format('MM/DD/YYYY h:mm A') : rule.value;
+                                rule.value = rule.type === 'date' && formatDate && rule.value.length ? moment(parseInt(rule.value)).format(Globals.dateTimeFormat) : rule.value;
                             }
                             return rule;
                         }
@@ -703,7 +706,7 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                 }
             });
             modal.on('ok', function() {
-                modal.$el.find('button.ok').attr("disabled", true);
+                modal.$el.find('button.ok').showButtonLoader();
                 CommonViewFunction.createEditGlossaryCategoryTermSubmit(_.extend({ "ref": view, "modal": modal }, options));
             });
             modal.on('closeModal', function() {
@@ -749,7 +752,7 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                 modal.trigger('closeModal');
             },
             cust_error: function() {
-                modal.$el.find('button.ok').attr("disabled", false);
+                modal.$el.find('button.ok').hideButtonLoader();
             }
         }
         if (model) {
@@ -796,8 +799,12 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                 collection = options.collection,
                 model = options.model,
                 newModel = new options.collection.model(),
+                noticeRef = null,
                 ajaxOptions = {
                     success: function(rModel, response) {
+                        if (noticeRef) {
+                            noticeRef.remove();
+                        }
                         Utils.notifySuccess({
                             content: ((isCategoryView || isEntityView ? "Term" : "Category") + " association is removed successfully")
                         });
@@ -806,6 +813,9 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                         }
                     },
                     cust_error: function() {
+                        if (noticeRef) {
+                            noticeRef.hideButtonLoader();
+                        }
                         if (options.hideLoader) {
                             options.hideLoader();
                         }
@@ -813,10 +823,13 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                 },
                 notifyObj = {
                     modal: true,
+                    okCloses: false,
+                    okShowLoader: true,
                     text: options.msg,
                     title: options.titleMessage,
                     okText: options.buttonText,
-                    ok: function(argument) {
+                    ok: function(notice) {
+                        noticeRef = notice;
                         if (options.showLoader) {
                             options.showLoader();
                         }
@@ -839,7 +852,7 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                             }));
                         }
                     },
-                    cancel: function(argument) {}
+                    cancel: function() {}
                 };
             Utils.notifyConfirm(notifyObj);
         }
@@ -891,7 +904,15 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
                             CommonViewFunction.restCsrfCustomHeader = header;
                             CommonViewFunction.restCsrfMethodsToIgnore = {};
                             methods.map(function(method) { CommonViewFunction.restCsrfMethodsToIgnore[method] = true; });
+                            var statusCodeErrorFn = function(error) {
+                                Utils.defaultErrorHandler(null, error)
+                            }
                             Backbone.$.ajaxSetup({
+                                statusCode: {
+                                    401: statusCodeErrorFn,
+                                    419: statusCodeErrorFn,
+                                    403: statusCodeErrorFn
+                                },
                                 beforeSend: CommonViewFunction.addRestCsrfCustomHeader
                             });
                         }
@@ -964,44 +985,44 @@ define(['require', 'utils/Utils', 'modules/Modal', 'utils/Messages', 'utils/Enum
         return list.join(',');
     }
     CommonViewFunction.fetchRootEntityAttributes = function(options) {
-            $.ajax({
-                url: options.url,
-                methods: 'GET',
-                dataType: 'json',
-                delay: 250,
-                cache: true,
-                success: function(response) {
-                    if (response) {
-                        var entity = Object.assign(response, { name: options.entity });
-                        Globals[options.entity] = entity;
-                    }
-                },
-                complete: function(response) {
-                    if (options.callback) {
-                        options.callback(response);
-                    }
+        $.ajax({
+            url: options.url,
+            methods: 'GET',
+            dataType: 'json',
+            cache: true,
+            success: function(response) {
+                if (response) {
+                    _.each(options.entity, function(rootEntity) {
+                        Globals[rootEntity] = $.extend(true, {}, response, { name: rootEntity, guid: rootEntity });
+                    });
                 }
-            });
-        },
-        CommonViewFunction.fetchRootClassificationAttributes = function(options) {
-            $.ajax({
-                url: options.url,
-                methods: 'GET',
-                dataType: 'json',
-                delay: 250,
-                cache: true,
-                success: function(response) {
-                    if (response) {
-                        var classification = Object.assign(response, { name: options.classification });
-                        Globals[options.classification] = classification;
-                    }
-                },
-                complete: function(response) {
-                    if (options.callback) {
-                        options.callback(response);
-                    }
+            },
+            complete: function(response) {
+                if (options.callback) {
+                    options.callback(response);
                 }
-            });
-        }
+            }
+        });
+    }
+    CommonViewFunction.fetchRootClassificationAttributes = function(options) {
+        $.ajax({
+            url: options.url,
+            methods: 'GET',
+            dataType: 'json',
+            cache: true,
+            success: function(response) {
+                if (response) {
+                    _.each(options.classification, function(rootClassification) {
+                        Globals[rootClassification] = $.extend(true, {}, response, { name: rootClassification, guid: rootClassification });
+                    });
+                }
+            },
+            complete: function(response) {
+                if (options.callback) {
+                    options.callback(response);
+                }
+            }
+        });
+    }
     return CommonViewFunction;
 });

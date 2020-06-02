@@ -52,7 +52,7 @@ define(['require',
              * @constructs
              */
             initialize: function(options) {
-                _.extend(this, _.pick(options, 'value', 'entityDefCollection', 'typeHeaders', 'searchVent', 'enumDefCollection', 'classificationDefCollection', 'tag', 'searchTableFilters'));
+                _.extend(this, _.pick(options, 'value', 'entityDefCollection', 'typeHeaders', 'searchVent', 'enumDefCollection', 'classificationDefCollection', 'businessMetadataDefCollection', 'tag', 'searchTableFilters'));
                 this.bindEvents();
                 var that = this;
                 this.modal = new Modal({
@@ -82,14 +82,15 @@ define(['require',
                 });
             },
             onRender: function() {
-                this.$('.fontLoader').show();
                 var obj = {
                     value: this.value,
                     searchVent: this.searchVent,
                     entityDefCollection: this.entityDefCollection,
                     enumDefCollection: this.enumDefCollection,
                     classificationDefCollection: this.classificationDefCollection,
-                    searchTableFilters: this.searchTableFilters
+                    businessMetadataDefCollection: this.businessMetadataDefCollection,
+                    searchTableFilters: this.searchTableFilters,
+                    typeHeaders: this.typeHeaders
                 }
 
                 if (this.tag) {

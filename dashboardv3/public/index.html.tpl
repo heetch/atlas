@@ -33,6 +33,17 @@
     <title>Atlas</title>
     <meta name="description" content="" />
     <meta name="viewport" content="width=device-width" />
+    <script type="text/javascript">
+    var isHtmlInPath = window.location.pathname.indexOf("index.html");
+    if (isHtmlInPath === -1) {
+        var pathname = window.location.pathname.replace(/\/[\w-]+.(jsp|html)|\/+$/ig, ''),
+            indexpath = pathname + "/index.html";
+        if (location.hash.length > 2) {
+            indexpath += location.hash;
+        }
+        window.location.replace(indexpath);
+    }
+    </script>
     <link rel="shortcut icon" href="img/favicon.ico?bust=<%- bust %>" type="image/x-icon" />
     <link rel="icon" href="img/favicon.ico?bust=<%- bust %>" type="image/x-icon" />
     <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
@@ -54,59 +65,14 @@
     <link href="js/libs/jQueryQueryBuilder/css/query-builder.default.min.css?bust=<%- bust %>" rel="stylesheet" />
     <link href="js/libs/bootstrap-daterangepicker/css/daterangepicker.css?bust=<%- bust %>" rel="stylesheet" />
     <link rel="stylesheet" href="js/libs/nvd3/css/nv.d3.min.css?bust=<%- bust %>" />
+    <link href="js/libs/dropzone/css/dropzone.css?bust=<%- bust %>" rel="stylesheet">
     <link href="js/libs/jstree/css/default/default-theme.min.css?bust=<%- bust %>" rel="stylesheet" />
     <link href="js/libs/pretty-checkbox/css/pretty-checkbox.min.css?bust=<%- bust %>" rel="stylesheet" />
     <link href="css/style.css?bust=<%- bust %>" rel="stylesheet" />
 </head>
 
 <body>
-    <!--     <div id="wrapper">
-        <div id="sidebar-wrapper" class="sidebar-wrapper">
-            <div id="sideNav-wrapper"></div>
-        </div>
-        <div id="page-content-wrapper" class="page-content-wrapper">
-            <header id="new-header" class="clearfix"></header>
-            <div id="new-page-wrapper">
-                <div>
-                    <div class="initialLoading"></div>
-                </div>
-            </div>
-        </div>
-    </div> -->
-    <!--  <div id="wrapper">
-        <div id="sidebar-wrapper" class="sidebar-wrapper">
-            <div id="sideNav-wrapper"></div>
-        </div>
-        <div id="page-content-wrapper" class="page-content-wrapper">
-           
-            <div id="new-page-wrapper">
-                <div>
-                    <div class="initialLoading"></div>
-                </div>
-            </div>
-        </div>
-    </div> -->
-    <!--  <div class="container-fluid gray-bg">
-       <div class="col-sm-12">
-            <div id="new-page-wrapper">
-                <div>
-                    <div class="initialLoading"></div>
-                </div>
-            </div>
-            <div class="fix-filter">
-                    <div class="sideBar">
-                        <div class="header">
-                            <span>Filter</span>
-                        </div>
-                        <div class="body">
-                            <div id="sideNav-wrapper"></div>
-                        </div>
-                    </div>
-                </div>
-        </div>
-    </div>
- -->
-    <div class="">
+    <div>
         <div id="header" class="clearfix"></div>
         <div class="container-fluid view-container">
             <div id="sidebar-wrapper" class="col-sm-3 no-padding"></div>
@@ -116,10 +82,8 @@
                 </div>
             </div>
         </div>
-        <div class="footer-content">
-            <a href="javascript:void(0)" id="sUI">Switch to Classic UI</a>
-        </div>
     </div>
+    <div class="module-loader"></div>
     <!-- build:js scripts/main.js -->
     <script data-main="js/main.js?bust=<%- bust %>" src="js/libs/requirejs/require.js?bust=<%- bust %>"></script>
     <!-- endbuild -->

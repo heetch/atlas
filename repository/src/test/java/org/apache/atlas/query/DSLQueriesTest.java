@@ -17,6 +17,7 @@
  */
 package org.apache.atlas.query;
 
+import org.apache.atlas.BasicTestSetup;
 import org.apache.atlas.TestModules;
 import org.apache.atlas.discovery.EntityDiscoveryService;
 import org.apache.atlas.exception.AtlasBaseException;
@@ -204,6 +205,8 @@ public class DSLQueriesTest extends BasicTestSetup {
     @DataProvider(name = "basicProvider")
     private Object[][] basicQueries() {
         return new Object[][]{
+                {"hive_column where table.name = \"sales_fact_daily_mv\"", 4},
+                {"hive_table where columns.name = \"app_id\"", 2},
                 {"from hive_db", 3},
                 {"hive_db", 3},
                 {"hive_db as d select d", 3},

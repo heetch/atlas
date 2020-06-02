@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-define(['require'], function(require) {
-    'use strict';
+define(["require"], function(require) {
+    "use strict";
 
     var Globals = {};
     Globals.settings = {};
@@ -28,14 +28,19 @@ define(['require'], function(require) {
             stateChanged: false,
             tagUrl: "#!/tag",
             searchUrl: "#!/search",
-            glossaryUrl: "#!/glossary"
+            glossaryUrl: "#!/glossary",
+            administratorUrl: "#!/administrator"
         },
         detailPageState: {}
     };
     Globals.userLogedIn = {
         status: false,
         response: {}
-    }
-    Globals.entityImgPath = "/img/entity-icon/"
+    };
+    Globals.serviceTypeMap = {};
+    Globals.entityImgPath = "/img/entity-icon/";
+    Globals.DEFAULT_UI = "v2";
+    Globals.dateFormat = "YYYY/MM/DD";
+    Globals.dateTimeFormat = "YYYY/MM/DD HH:mm:ss";
     return Globals;
 });

@@ -17,7 +17,7 @@
  */
 package org.apache.atlas;
 
-import org.apache.atlas.security.InMemoryJAASConfiguration;
+import org.apache.atlas.security.SecurityUtil;
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.ConfigurationConverter;
 import org.apache.commons.configuration.ConfigurationException;
@@ -56,10 +56,15 @@ public final class ApplicationProperties extends PropertiesConfiguration {
     public static final String  STORAGE_BACKEND_HBASE           = "hbase";
     public static final String  STORAGE_BACKEND_HBASE2          = "hbase2";
     public static final String  INDEX_BACKEND_SOLR              = "solr";
+    public static final String  LDAP_TYPE                       =  "atlas.authentication.method.ldap.type";
+    public static final String  LDAP_AD_BIND_PASSWORD           =  "atlas.authentication.method.ldap.ad.bind.password";
+    public static final String  LDAP_BIND_PASSWORD              =  "atlas.authentication.method.ldap.bind.password";
+    public static final String  MASK_LDAP_PASSWORD              =  "********";
     public static final String  DEFAULT_GRAPHDB_BACKEND         = GRAPHBD_BACKEND_JANUS;
     public static final boolean DEFAULT_SOLR_WAIT_SEARCHER      = true;
     public static final boolean DEFAULT_INDEX_MAP_NAME          = false;
     public static final AtlasRunMode DEFAULT_ATLAS_RUN_MODE     = AtlasRunMode.PROD;
+    public static final String INDEX_SEARCH_MAX_RESULT_SET_SIZE = "atlas.graph.index.search.max-result-set-size";
 
     public static final SimpleEntry<String, String> DB_CACHE_CONF               = new SimpleEntry<>("atlas.graph.cache.db-cache", "true");
     public static final SimpleEntry<String, String> DB_CACHE_CLEAN_WAIT_CONF    = new SimpleEntry<>("atlas.graph.cache.db-cache-clean-wait", "20");
@@ -103,10 +108,7 @@ public final class ApplicationProperties extends PropertiesConfiguration {
     public static Configuration set(Configuration configuration) throws AtlasException {
         synchronized (ApplicationProperties.class) {
             instance = configuration;
-
-            InMemoryJAASConfiguration.init(instance);
         }
-
         return instance;
     }
 
@@ -134,6 +136,8 @@ public final class ApplicationProperties extends PropertiesConfiguration {
             ApplicationProperties appProperties = new ApplicationProperties(url);
 
             appProperties.setDefaults();
+
+            setLdapPasswordFromKeystore(appProperties);
 
             Configuration configuration = appProperties.interpolatedConfiguration();
 
@@ -269,6 +273,32 @@ public final class ApplicationProperties extends PropertiesConfiguration {
         return inStr;
     }
 
+    private static void setLdapPasswordFromKeystore(Configuration configuration) {
+        String ldapType = configuration.getString(LDAP_TYPE);
+
+        if (StringUtils.isNotEmpty(ldapType)) {
+            try {
+                if (ldapType.equalsIgnoreCase("ldap")) {
+                    String maskPasssword = configuration.getString(LDAP_BIND_PASSWORD);
+                    if (MASK_LDAP_PASSWORD.equals(maskPasssword)) {
+                        String password = SecurityUtil.getPassword(configuration, LDAP_BIND_PASSWORD);
+                        configuration.clearProperty(LDAP_BIND_PASSWORD);
+                        configuration.addProperty(LDAP_BIND_PASSWORD, password);
+                    }
+                } else if (ldapType.equalsIgnoreCase("ad")) {
+                    String maskPasssword = configuration.getString(LDAP_AD_BIND_PASSWORD);
+                    if (MASK_LDAP_PASSWORD.equals(maskPasssword)) {
+                        String password = SecurityUtil.getPassword(configuration, LDAP_AD_BIND_PASSWORD);
+                        configuration.clearProperty(LDAP_AD_BIND_PASSWORD);
+                        configuration.addProperty(LDAP_AD_BIND_PASSWORD, password);
+                    }
+                }
+            } catch (Exception e) {
+                LOG.error("Error in getting secure password ", e);
+            }
+        }
+    }
+
     private void setDefaults() {
         AtlasRunMode runMode = AtlasRunMode.valueOf(getString(ATLAS_RUN_MODE, DEFAULT_ATLAS_RUN_MODE.name()));
 
@@ -320,6 +350,14 @@ public final class ApplicationProperties extends PropertiesConfiguration {
                 LOG.info("Setting index.search.map-name property '" + DEFAULT_INDEX_MAP_NAME + "'");
             }
         }
+
+        // setting value for 'atlas.graph.index.search.max-result-set-size' (default = 500000)
+        int indexMaxResultSetSize = getInt(INDEX_SEARCH_MAX_RESULT_SET_SIZE, 500000);
+
+        clearPropertyDirect(INDEX_SEARCH_MAX_RESULT_SET_SIZE);
+        addPropertyDirect(INDEX_SEARCH_MAX_RESULT_SET_SIZE, indexMaxResultSetSize);
+
+        LOG.info("Setting " + INDEX_SEARCH_MAX_RESULT_SET_SIZE + " = " + indexMaxResultSetSize);
 
         setDbCacheConfDefaults();
     }

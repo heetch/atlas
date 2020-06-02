@@ -42,7 +42,8 @@ require.config({
      * @default 7 seconds
      * @type {Number}
      */
-    'waitSeconds': 30,
+    'waitSeconds': 0,
+
 
     'shim': {
         'backbone': {
@@ -176,6 +177,7 @@ require.config({
         'table-dragger': 'libs/table-dragger/table-dragger',
         'jstree': 'libs/jstree/jstree.min',
         'jquery-steps': 'libs/jquery-steps/jquery.steps.min',
+        'dropzone': 'libs/dropzone/js/dropzone-amd-module'
     },
 
     /**
@@ -202,25 +204,35 @@ require(['App',
     'select2'
 ], function(App, Router, Helper, CommonViewFunction, Globals, UrlLinks, VEntityList, VTagList, Enums) {
     var that = this;
-    this.asyncFetchCounter = 6 + (Enums.addOnEntities.length + 1);
+    this.asyncFetchCounter = 7 + (Enums.addOnEntities.length + 1);
+    // entity
     this.entityDefCollection = new VEntityList();
     this.entityDefCollection.url = UrlLinks.entitiesDefApiUrl();
+    // typeHeaders
     this.typeHeaders = new VTagList();
     this.typeHeaders.url = UrlLinks.typesApiUrl();
+    // enum
     this.enumDefCollection = new VTagList();
     this.enumDefCollection.url = UrlLinks.enumDefApiUrl();
     this.enumDefCollection.modelAttrName = "enumDefs";
+    // classfication
     this.classificationDefCollection = new VTagList();
+    // metric
     this.metricCollection = new VTagList();
     this.metricCollection.url = UrlLinks.metricsApiUrl();
     this.metricCollection.modelAttrName = "data";
+    // businessMetadata
+    this.businessMetadataDefCollection = new VEntityList();
+    this.businessMetadataDefCollection.url = UrlLinks.businessMetadataDefApiUrl();
+    this.businessMetadataDefCollection.modelAttrName = "businessMetadataDefs";
 
     App.appRouter = new Router({
         entityDefCollection: this.entityDefCollection,
         typeHeaders: this.typeHeaders,
         enumDefCollection: this.enumDefCollection,
         classificationDefCollection: this.classificationDefCollection,
-        metricCollection: this.metricCollection
+        metricCollection: this.metricCollection,
+        businessMetadataDefCollection: this.businessMetadataDefCollection
     });
 
     var startApp = function() {
@@ -252,13 +264,15 @@ require(['App',
                         }
                     }
                 }
+                if (response['atlas.ui.default.version'] !== undefined) {
+                    Globals.DEFAULT_UI = response['atlas.ui.default.version'];
+                }
             }
             --that.asyncFetchCounter;
             startApp();
         }
     });
     this.entityDefCollection.fetch({
-        skipDefaultError: true,
         complete: function() {
             that.entityDefCollection.fullCollection.comparator = function(model) {
                 return model.get('name').toLowerCase();
@@ -269,7 +283,6 @@ require(['App',
         }
     });
     this.typeHeaders.fetch({
-        skipDefaultError: true,
         complete: function() {
             that.typeHeaders.fullCollection.comparator = function(model) {
                 return model.get('name').toLowerCase();
@@ -280,7 +293,6 @@ require(['App',
         }
     });
     this.enumDefCollection.fetch({
-        skipDefaultError: true,
         complete: function() {
             that.enumDefCollection.fullCollection.comparator = function(model) {
                 return model.get('name').toLowerCase();
@@ -291,7 +303,6 @@ require(['App',
         }
     });
     this.classificationDefCollection.fetch({
-        skipDefaultError: true,
         complete: function() {
             that.classificationDefCollection.fullCollection.comparator = function(model) {
                 return model.get('name').toLowerCase();
@@ -303,27 +314,35 @@ require(['App',
     });
 
     this.metricCollection.fetch({
-        skipDefaultError: true,
         complete: function() {
             --that.asyncFetchCounter;
             startApp();
         }
     });
 
-    Enums.addOnEntities.forEach(function(addOnEntity) {
-        CommonViewFunction.fetchRootEntityAttributes({
-            url: UrlLinks.rootEntityDefUrl(addOnEntity),
-            entity: addOnEntity,
-            callback: function() {
-                --that.asyncFetchCounter;
-                startApp();
-            }
-        });
+    this.businessMetadataDefCollection.fetch({
+        complete: function() {
+            that.businessMetadataDefCollection.fullCollection.comparator = function(model) {
+                return model.get('name').toLowerCase();
+            };
+            that.businessMetadataDefCollection.fullCollection.sort({ silent: true });
+            --that.asyncFetchCounter;
+            startApp();
+        }
+    });
+
+    CommonViewFunction.fetchRootEntityAttributes({
+        url: UrlLinks.rootEntityDefUrl(Enums.addOnEntities[0]),
+        entity: Enums.addOnEntities,
+        callback: function() {
+            --that.asyncFetchCounter;
+            startApp();
+        }
     });
 
     CommonViewFunction.fetchRootClassificationAttributes({
         url: UrlLinks.rootClassificationDefUrl(Enums.addOnClassification[0]),
-        classification: Enums.addOnClassification[0],
+        classification: Enums.addOnClassification,
         callback: function() {
             --that.asyncFetchCounter;
             startApp();

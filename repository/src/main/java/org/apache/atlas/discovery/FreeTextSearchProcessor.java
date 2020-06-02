@@ -24,6 +24,7 @@ import org.apache.atlas.repository.graph.GraphHelper;
 import org.apache.atlas.repository.graphdb.*;
 import org.apache.atlas.repository.store.graph.v2.AtlasGraphUtilsV2;
 import org.apache.atlas.utils.AtlasPerfTracer;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.solr.common.params.CommonParams;
 import org.slf4j.Logger;
@@ -52,11 +53,13 @@ public class FreeTextSearchProcessor extends SearchProcessor {
 
         queryString.append(searchParameters.getQuery());
 
-        if (StringUtils.isNotEmpty(context.getEntityTypesQryStr()) && context.getEntityTypesQryStr().length() <= MAX_QUERY_STR_LENGTH_TYPES) {
+        if (CollectionUtils.isNotEmpty(context.getEntityTypes()) && context.getEntityTypesQryStr().length() <= MAX_QUERY_STR_LENGTH_TYPES) {
             queryString.append(AND_STR).append(context.getEntityTypesQryStr());
         }
 
-        if (StringUtils.isNotEmpty(context.getClassificationTypesQryStr()) && context.getClassificationTypesQryStr().length() <= MAX_QUERY_STR_LENGTH_TYPES) {
+        graphIndexQueryBuilder.addActiveStateQueryFilter(queryString);
+
+        if (CollectionUtils.isNotEmpty(context.getClassificationTypes()) && context.getClassificationTypesQryStr().length() <= MAX_QUERY_STR_LENGTH_TYPES) {
             queryString.append(AND_STR).append(context.getClassificationTypesQryStr());
         }
 
@@ -89,9 +92,8 @@ public class FreeTextSearchProcessor extends SearchProcessor {
         }
 
         try {
-            final int     startIdx   = context.getSearchParameters().getOffset();
-            final int     limit      = context.getSearchParameters().getLimit();
-            final boolean activeOnly = context.getSearchParameters().getExcludeDeletedEntities();
+            final int startIdx = context.getSearchParameters().getOffset();
+            final int limit    = context.getSearchParameters().getLimit();
 
             // query to start at 0, even though startIdx can be higher - because few results in earlier retrieval could
             // have been dropped: like vertices of non-entity or non-active-entity
@@ -111,7 +113,7 @@ public class FreeTextSearchProcessor extends SearchProcessor {
                         break;
                     }
 
-                    Iterator<AtlasIndexQuery.Result> idxQueryResult = indexQuery.vertices(qryOffset, limit);
+                    Iterator<AtlasIndexQuery.Result> idxQueryResult = executeIndexQuery(context, indexQuery, qryOffset, limit);
 
                     final boolean isLastResultPage;
                     int resultCount = 0;
@@ -133,10 +135,6 @@ public class FreeTextSearchProcessor extends SearchProcessor {
                         }
 
                         if (!context.includeEntityType(entityTypeName)) {
-                            continue;
-                        }
-
-                        if (activeOnly && AtlasGraphUtilsV2.getState(vertex) != AtlasEntity.Status.ACTIVE) {
                             continue;
                         }
 

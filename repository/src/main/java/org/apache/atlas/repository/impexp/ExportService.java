@@ -66,14 +66,14 @@ public class ExportService {
     private final HdfsPathEntityCreator     hdfsPathEntityCreator;
 
     @Inject
-    public ExportService(final AtlasTypeRegistry typeRegistry, AtlasGraph atlasGraph,
+    public ExportService(final AtlasTypeRegistry typeRegistry, AtlasGraph graph,
                          AuditsWriter auditsWriter, HdfsPathEntityCreator hdfsPathEntityCreator) {
         this.typeRegistry         = typeRegistry;
-        this.entityGraphRetriever = new EntityGraphRetriever(this.typeRegistry);
+        this.entityGraphRetriever = new EntityGraphRetriever(graph, this.typeRegistry);
         this.auditsWriter         = auditsWriter;
         this.hdfsPathEntityCreator = hdfsPathEntityCreator;
-        this.startEntityFetchByExportRequest = new StartEntityFetchByExportRequest(atlasGraph, typeRegistry, AtlasGremlinQueryProvider.INSTANCE);
-        this.entitiesExtractor = new EntitiesExtractor(atlasGraph, typeRegistry);
+        this.startEntityFetchByExportRequest = new StartEntityFetchByExportRequest(graph, typeRegistry, AtlasGremlinQueryProvider.INSTANCE);
+        this.entitiesExtractor = new EntitiesExtractor(graph, typeRegistry);
     }
 
     public AtlasExportResult run(ZipSink exportSink, AtlasExportRequest request, String userName, String hostName,
@@ -347,7 +347,7 @@ public class ExportService {
         final Set<String>                     structTypes         = new HashSet<>();
         final Set<String>                     enumTypes           = new HashSet<>();
         final Set<String>                     relationshipTypes   = new HashSet<>();
-        final Set<String>                     namespaceTypes     = new HashSet<>();
+        final Set<String>                     businessMetadataTypes = new HashSet<>();
         final AtlasExportResult               result;
         private final ZipSink                 sink;
 

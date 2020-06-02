@@ -30,25 +30,32 @@ define([
     var AppRouter = Backbone.Router.extend({
         routes: {
             // Define some URL routes
-            '': 'defaultAction',
-            '!/': 'tagAttributePageLoad',
-            '!/tag/tagAttribute/(*name)': 'tagAttributePageLoad',
-            '!/search/searchResult': 'searchResult',
-            '!/detailPage/:id': 'detailPage',
-            '!/tag': 'commonAction',
-            '!/search': 'commonAction',
-            '!/glossary': 'commonAction',
-            '!/glossary/:id': 'glossaryDetailPage',
+            "": "defaultAction",
+            "!/": "tagAttributePageLoad",
+            // Search
+            "!/search": "commonAction",
+            "!/search/searchResult": "searchResult",
+            // Tag
+            "!/tag": "commonAction",
+            "!/tag/tagAttribute/(*name)": "tagAttributePageLoad",
+            // Glossary
+            "!/glossary": "commonAction",
+            "!/glossary/:id": "glossaryDetailPage",
+            // Details
+            "!/detailPage/:id": "detailPage",
+            //Administrator page
+            '!/administrator': 'administrator',
+            '!/administrator/businessMetadata/:id': 'businessMetadataDetailPage',
             // Default
             '*actions': 'defaultAction'
         },
         initialize: function(options) {
-            _.extend(this, _.pick(options, 'entityDefCollection', 'typeHeaders', 'enumDefCollection', 'classificationDefCollection', 'metricCollection'));
+            _.extend(this, _.pick(options, 'entityDefCollection', 'typeHeaders', 'enumDefCollection', 'classificationDefCollection', 'metricCollection', 'businessMetadataDefCollection'));
             this.showRegions();
-            this.bindFooterEvent();
             this.bindCommonEvents();
             this.listenTo(this, 'route', this.postRouteExecute, this);
             this.searchVent = new Backbone.Wreqr.EventAggregator();
+            this.importVent = new Backbone.Wreqr.EventAggregator();
             this.glossaryCollection = new VGlossaryList([], {
                 comparator: function(item) {
                     return item.get("name");
@@ -60,7 +67,12 @@ define([
                 'enumDefCollection': this.enumDefCollection,
                 'classificationDefCollection': this.classificationDefCollection,
                 'glossaryCollection': this.glossaryCollection,
-                'metricCollection': this.metricCollection
+                'metricCollection': this.metricCollection,
+                'businessMetadataDefCollection': this.businessMetadataDefCollection
+            }
+            this.ventObj = {
+                searchVent: this.searchVent,
+                importVent: this.importVent
             }
             this.sharedObj = {
                 searchTableColumns: {},
@@ -73,23 +85,13 @@ define([
                 }
             }
         },
-        bindFooterEvent: function() {
-            $("body").on("click", "#sUI", function() {
-                var path = Utils.getBaseUrl(window.location.pathname) + "/n/index.html";
-                if (window.location.hash.length > 2) {
-                    path += window.location.hash;
-                }
-                window.location.href = path;
-            });
-        },
         bindCommonEvents: function() {
             var that = this;
             $('body').on('click', 'a.show-stat', function() {
                 require([
                     'views/site/Statistics',
                 ], function(Statistics) {
-                    new Statistics(_.extend({}, that.preFetchedCollectionLists,
-                        that.sharedObj));
+                    new Statistics(_.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj));
                 });
             });
             $('body').on('click', 'li.aboutAtlas', function() {
@@ -132,14 +134,15 @@ define([
             // console.log("Post-Route Change Operations can be performed here !!");
             // console.log("Route changed: ", name);
         },
-        getHeaderOptions: function(Header) {
+        getHeaderOptions: function(Header, options) {
+            var that = this;
             return {
                 view: App.rNHeader,
                 manualRender: function() {
                     this.view.currentView.manualRender();
                 },
                 render: function() {
-                    return new Header();
+                    return new Header(_.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj, options));
                 }
             }
         },
@@ -153,7 +156,8 @@ define([
                     'collection/VEntityList'
                 ], function(Header, DetailPageLayoutView, SideNavLayoutView, VEntityList) {
                     this.entityCollection = new VEntityList([], {});
-                    var paramObj = Utils.getUrlState.getQueryParams();
+                    var paramObj = Utils.getUrlState.getQueryParams(),
+                        options = _.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
                     that.renderViewIfNotExists(that.getHeaderOptions(Header));
                     that.renderViewIfNotExists({
                         view: App.rSideNav,
@@ -161,16 +165,10 @@ define([
                             this.view.currentView.selectTab();
                         },
                         render: function() {
-                            return new SideNavLayoutView(
-                                _.extend({}, that.preFetchedCollectionLists, that.sharedObj)
-                            );
+                            return new SideNavLayoutView(options);
                         }
                     });
-                    App.rNContent.show(new DetailPageLayoutView(_.extend({
-                        'collection': this.entityCollection,
-                        'id': id,
-                        'value': paramObj
-                    }, that.preFetchedCollectionLists, that.sharedObj)));
+                    App.rNContent.show(new DetailPageLayoutView(_.extend({ 'collection': this.entityCollection, 'id': id, 'value': paramObj }, options)));
                     this.entityCollection.url = UrlLinks.entitiesApiUrl({ guid: id, minExtInfo: true });
                     this.entityCollection.fetch({ reset: true });
                 });
@@ -184,7 +182,8 @@ define([
                 'views/tag/TagDetailLayoutView',
             ], function(Header, SideNavLayoutView, TagDetailLayoutView) {
                 var paramObj = Utils.getUrlState.getQueryParams(),
-                    url = Utils.getUrlState.getQueryUrl().queyParams[0];
+                    url = Utils.getUrlState.getQueryUrl().queyParams[0],
+                    options = _.extend({ 'tag': tagName, 'value': paramObj }, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
                 that.renderViewIfNotExists(that.getHeaderOptions(Header));
                 that.renderViewIfNotExists({
                     view: App.rSideNav,
@@ -207,12 +206,7 @@ define([
                                 updateTabState: true
                             });
                         }
-                        return new SideNavLayoutView(
-                            _.extend({
-                                'tag': tagName,
-                                'value': paramObj
-                            }, that.preFetchedCollectionLists, that.sharedObj)
-                        );
+                        return new SideNavLayoutView(options);
                     }
                 });
                 if (tagName) {
@@ -221,12 +215,7 @@ define([
                     if (paramObj && paramObj.dlttag) {
                         return false;
                     }
-                    App.rNContent.show(new TagDetailLayoutView(
-                        _.extend({
-                            'tag': tagName,
-                            'value': paramObj
-                        }, that.preFetchedCollectionLists, that.sharedObj)
-                    ));
+                    App.rNContent.show(new TagDetailLayoutView(options));
                 }
             });
         },
@@ -238,69 +227,22 @@ define([
                     'views/glossary/GlossaryDetailLayoutView',
                     'views/site/SideNavLayoutView'
                 ], function(Header, GlossaryDetailLayoutView, SideNavLayoutView) {
-                    var paramObj = Utils.getUrlState.getQueryParams();
+                    var paramObj = Utils.getUrlState.getQueryParams(),
+                        options = _.extend({ 'guid': id, 'value': paramObj }, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
                     that.renderViewIfNotExists(that.getHeaderOptions(Header));
                     that.renderViewIfNotExists({
                         view: App.rSideNav,
                         manualRender: function() {
-                            this.view.currentView.RGlossaryLayoutView.currentView.manualRender(_.extend({}, { 'guid': id, 'value': paramObj }));
+                            this.view.currentView.RGlossaryLayoutView.currentView.manualRender(options);
                             this.view.currentView.selectTab();
                         },
                         render: function() {
-                            return new SideNavLayoutView(
-                                _.extend({}, that.preFetchedCollectionLists, that.sharedObj, { 'guid': id, 'value': paramObj })
-                            )
+                            return new SideNavLayoutView(options)
                         }
                     });
-                    App.rNContent.show(new GlossaryDetailLayoutView(_.extend({
-                        'guid': id,
-                        'value': paramObj
-                    }, that.preFetchedCollectionLists, that.sharedObj)));
+                    App.rNContent.show(new GlossaryDetailLayoutView(options));
                 });
             }
-        },
-        commonAction: function() {
-            var that = this;
-            require([
-                'views/site/Header',
-                'views/site/SideNavLayoutView',
-                'views/search/SearchDetailLayoutView',
-            ], function(Header, SideNavLayoutView, SearchDetailLayoutView) {
-                var paramObj = Utils.getUrlState.getQueryParams();
-                that.renderViewIfNotExists(that.getHeaderOptions(Header));
-                that.renderViewIfNotExists({
-                    view: App.rSideNav,
-                    manualRender: function() {
-                        this.view.currentView.selectTab();
-                        if (Utils.getUrlState.isTagTab()) {
-                            this.view.currentView.RTagLayoutView.currentView.manualRender();
-                        } else if (Utils.getUrlState.isGlossaryTab()) {
-                            this.view.currentView.RGlossaryLayoutView.currentView.manualRender(_.extend({ "isTrigger": true }, { "value": paramObj }));
-                        }
-                    },
-                    render: function() {
-                        return new SideNavLayoutView(
-                            _.extend({
-                                'searchVent': that.searchVent
-                            }, that.preFetchedCollectionLists, that.sharedObj)
-                        )
-                    }
-                });
-
-                if (Globals.entityCreate && Utils.getUrlState.isSearchTab()) {
-                    App.rNContent.show(new SearchDetailLayoutView(
-                        _.extend({
-                            'value': paramObj,
-                            'initialView': true,
-                            'searchVent': that.searchVent
-                        }, that.preFetchedCollectionLists, that.sharedObj)
-                    ));
-                } else {
-                    if (App.rNContent.currentView) {
-                        App.rNContent.currentView.destroy();
-                    }
-                }
-            });
         },
         searchResult: function() {
             var that = this;
@@ -309,7 +251,8 @@ define([
                 'views/site/SideNavLayoutView',
                 'views/search/SearchDetailLayoutView'
             ], function(Header, SideNavLayoutView, SearchDetailLayoutView) {
-                var paramObj = Utils.getUrlState.getQueryParams();
+                var paramObj = Utils.getUrlState.getQueryParams(),
+                    options = _.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
                 if (paramObj.tag) {
                     var tagValidate = paramObj.tag,
                         isTagPresent = false;
@@ -344,12 +287,7 @@ define([
                         this.view.currentView.RSearchLayoutView.currentView.manualRender(paramObj);
                     },
                     render: function() {
-                        return new SideNavLayoutView(
-                            _.extend({
-                                'value': paramObj,
-                                'searchVent': that.searchVent
-                            }, that.preFetchedCollectionLists, that.sharedObj)
-                        )
+                        return new SideNavLayoutView(_.extend({ 'value': paramObj }, options));
                     }
                 });
                 App.rSideNav.currentView.selectTab();
@@ -359,11 +297,92 @@ define([
                 App.rNContent.show(new SearchDetailLayoutView(
                     _.extend({
                         'value': paramObj,
-                        'searchVent': that.searchVent,
                         'initialView': isinitialView,
                         'isTypeTagNotExists': ((paramObj.type != tempParam.type) || (tempParam.tag != paramObj.tag))
-                    }, that.preFetchedCollectionLists, that.sharedObj)
+                    }, options)
                 ));
+            });
+        },
+        administrator: function() {
+            var that = this;
+            require(["views/site/Header", "views/site/SideNavLayoutView", 'views/administrator/AdministratorLayoutView'], function(Header, SideNavLayoutView, AdministratorLayoutView) {
+                var paramObj = Utils.getUrlState.getQueryParams(),
+                    options = _.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
+                that.renderViewIfNotExists(that.getHeaderOptions(Header));
+                that.renderViewIfNotExists({
+                    view: App.rSideNav,
+                    manualRender: function() {
+                        this.view.currentView.selectTab();
+                        if (Utils.getUrlState.isTagTab()) {
+                            this.view.currentView.RTagLayoutView.currentView.manualRender();
+                        } else if (Utils.getUrlState.isGlossaryTab()) {
+                            this.view.currentView.RGlossaryLayoutView.currentView.manualRender(_.extend({ "isTrigger": true, "value": paramObj }));
+                        }
+                    },
+                    render: function() {
+                        return new SideNavLayoutView(options);
+                    }
+                });
+                App.rNContent.show(new AdministratorLayoutView(_.extend({ value: paramObj, guid: null }, options)));
+            });
+        },
+        businessMetadataDetailPage: function(guid) {
+            var that = this;
+            require(["views/site/Header", "views/site/SideNavLayoutView", "views/business_metadata/BusinessMetadataContainerLayoutView", ], function(Header, SideNavLayoutView, BusinessMetadataContainerLayoutView) {
+                var paramObj = Utils.getUrlState.getQueryParams(),
+                    options = _.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
+                that.renderViewIfNotExists(that.getHeaderOptions(Header));
+                that.renderViewIfNotExists({
+                    view: App.rSideNav,
+                    manualRender: function() {
+                        this.view.currentView.selectTab();
+                        if (Utils.getUrlState.isTagTab()) {
+                            this.view.currentView.RTagLayoutView.currentView.manualRender();
+                        } else if (Utils.getUrlState.isGlossaryTab()) {
+                            this.view.currentView.RGlossaryLayoutView.currentView.manualRender(_.extend({ "isTrigger": true, "value": paramObj }));
+                        }
+                    },
+                    render: function() {
+                        return new SideNavLayoutView(options);
+                    }
+                });
+                App.rNContent.show(new BusinessMetadataContainerLayoutView(_.extend({ guid: guid, value: paramObj }, options)));
+            });
+        },
+        commonAction: function() {
+            var that = this;
+            require([
+                'views/site/Header',
+                'views/site/SideNavLayoutView',
+                'views/search/SearchDetailLayoutView',
+            ], function(Header, SideNavLayoutView, SearchDetailLayoutView) {
+                var paramObj = Utils.getUrlState.getQueryParams(),
+                    options = _.extend({}, that.preFetchedCollectionLists, that.sharedObj, that.ventObj);
+                that.renderViewIfNotExists(that.getHeaderOptions(Header));
+                that.renderViewIfNotExists({
+                    view: App.rSideNav,
+                    manualRender: function() {
+                        this.view.currentView.selectTab();
+                        if (Utils.getUrlState.isTagTab()) {
+                            this.view.currentView.RTagLayoutView.currentView.manualRender();
+                        } else if (Utils.getUrlState.isGlossaryTab()) {
+                            this.view.currentView.RGlossaryLayoutView.currentView.manualRender(_.extend({ "isTrigger": true, "value": paramObj }));
+                        }
+                    },
+                    render: function() {
+                        return new SideNavLayoutView(options);
+                    }
+                });
+
+                if (Globals.entityCreate && Utils.getUrlState.isSearchTab()) {
+                    App.rNContent.show(new SearchDetailLayoutView(_.extend({ 'value': paramObj, 'initialView': true }, options)));
+                } else {
+                    if (App.rNContent.currentView) {
+                        App.rNContent.currentView.destroy();
+                    } else {
+                        App.rNContent.$el.empty();
+                    }
+                }
             });
         },
         defaultAction: function(actions) {

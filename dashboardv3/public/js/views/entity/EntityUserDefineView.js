@@ -42,19 +42,21 @@ define(['require',
         },
         ui: {
             addAttr: "[data-id='addAttr']",
-            editAttr: "[data-id='editAttr']",
-            saveAttrItems: "[data-id='saveAttrItems']"
+            saveAttrItems: "[data-id='saveAttrItems']",
+            cancel: "[data-id='cancel']",
+            addItem: "[data-id='addItem']"
         },
         events: function() {
             var events = {};
             events["click " + this.ui.addAttr] = 'onAddAttrClick';
-            events["click " + this.ui.editAttr] = 'onEditAttrClick';
+            events["click " + this.ui.addItem] = 'onAddAttrClick';
             events["click " + this.ui.saveAttrItems] = 'onEditAttrClick';
+            events["click " + this.ui.cancel] = 'onCancelClick';
             return events;
         },
         initialize: function(options) {
-            _.extend(this, _.pick(options, 'entity', 'customFilter'));
-            this.userDefineAttr = this.entity.customAttributes || [];
+            _.extend(this, _.pick(options, 'entity', 'customFilter', 'renderAuditTableLayoutView'));
+            this.userDefineAttr = this.entity && this.entity.customAttributes || [];
             this.initialCall = false;
             this.swapItem = false, this.saveAttrItems = false;
             this.readOnlyEntity = this.customFilter === undefined ? Enums.entityStateReadOnly[this.entity.status] : this.customFilter;
@@ -66,9 +68,8 @@ define(['require',
         onRender: function() {},
         renderEntityUserDefinedItems: function() {
             var that = this;
-
             require(['views/entity/EntityUserDefineItemView'], function(EntityUserDefineItemView) {
-                that.itemView = new EntityUserDefineItemView({ items: that.customAttibutes });
+                that.itemView = new EntityUserDefineItemView({ items: that.customAttibutes, updateButtonState: that.updateButtonState.bind(that) });
                 that.REntityUserDefinedItemView.show(that.itemView);
             });
         },
@@ -106,6 +107,21 @@ define(['require',
             this.initialCall = this.customAttibutes.length > 0 ? false : true;
             this.setAttributeModal(this.itemView);
         },
+        updateButtonState: function() {
+            if (this.customAttibutes.length === 0) {
+                this.swapItem = false;
+                this.saveAttrItems = false;
+                this.render();
+            } else {
+                return false;
+            }
+        },
+        onCancelClick: function() {
+            this.initialCall = false;
+            this.swapItem = false;
+            this.saveAttrItems = false;
+            this.render();
+        },
         structureAttributes: function(list) {
             var obj = {}
             list.map(function(o) {
@@ -136,6 +152,9 @@ define(['require',
                     that.swapItem = false;
                     that.saveAttrItems = false;
                     that.render();
+                    if (that.renderAuditTableLayoutView) {
+                        that.renderAuditTableLayoutView();
+                    }
                 },
                 error: function(e) {
                     that.initialCall = false;

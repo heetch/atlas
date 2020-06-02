@@ -37,7 +37,11 @@ define(['require'], function(require) {
         TERM_ADD: "Term Added",
         TERM_DELETE: "Term Deleted",
         LABEL_ADD: "Label(s) Added",
-        LABEL_DELETE: "Label(s) Deleted"
+        LABEL_DELETE: "Label(s) Deleted",
+        ENTITY_PURGE: "Entity Purged",
+        BUSINESS_ATTRIBUTE_ADD: "Business Attribute(s) Added",
+        BUSINESS_ATTRIBUTE_UPDATE: "Business Attribute(s) Updated",
+        BUSINESS_ATTRIBUTE_DELETE: "Business Attribute(s) Deleted"
     }
 
     Enums.entityStateReadOnly = {
@@ -45,6 +49,10 @@ define(['require'], function(require) {
         DELETED: true,
         STATUS_ACTIVE: false,
         STATUS_DELETED: true
+    }
+
+    Enums.isEntityPurged = {
+        PURGED: true
     }
 
     Enums.lineageUrlType = {
@@ -194,8 +202,8 @@ define(['require'], function(require) {
     };
     Enums.systemAttributes = {
         "__classificationNames": "Classification(s)",
-        "__createdBy": "Created By",
-        "__customAttributes": "User-defined attributes",
+        "__createdBy": "Created By User",
+        "__customAttributes": "User-defined Properties",
         "__guid": "Guid",
         "__isIncomplete": "IsIncomplete",
         "__labels": "Label(s)",
@@ -208,7 +216,7 @@ define(['require'], function(require) {
     };
     Enums.__isIncomplete = {
         0: "false",
-        1: "rue"
-    }
+        1: "true"
+    };
     return Enums;
 });

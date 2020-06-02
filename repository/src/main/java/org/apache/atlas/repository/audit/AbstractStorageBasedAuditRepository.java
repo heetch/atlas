@@ -86,7 +86,7 @@ public abstract class AbstractStorageBasedAuditRepository implements Service, En
 
   @Override
   public List<Object> listEvents(String entityId, String startKey, short maxResults) throws AtlasBaseException {
-    List ret = listEventsV2(entityId, startKey, maxResults);
+    List ret = listEventsV2(entityId, null, startKey, maxResults);
 
     try {
       if (CollectionUtils.isEmpty(ret)) {
@@ -158,7 +158,7 @@ public abstract class AbstractStorageBasedAuditRepository implements Service, En
   protected byte[] getKey(String id, Long ts, int index) {
     assert id != null  : "entity id can't be null";
     assert ts != null  : "timestamp can't be null";
-    String keyStr = id + FIELD_SEPARATOR + ts + FIELD_SEPARATOR + index;
+    String keyStr = id + FIELD_SEPARATOR + ts + FIELD_SEPARATOR + index + FIELD_SEPARATOR + System.currentTimeMillis();
     return Bytes.toBytes(keyStr);
   }
 

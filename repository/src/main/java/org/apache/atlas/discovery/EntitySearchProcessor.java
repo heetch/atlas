@@ -25,7 +25,7 @@ import org.apache.atlas.repository.graphdb.AtlasIndexQuery;
 import org.apache.atlas.repository.graphdb.AtlasVertex;
 import org.apache.atlas.type.AtlasClassificationType;
 import org.apache.atlas.type.AtlasEntityType;
-import org.apache.atlas.type.AtlasStructType;
+import org.apache.atlas.type.AtlasStructType.AtlasAttribute;
 import org.apache.atlas.util.SearchPredicateUtil;
 import org.apache.atlas.utils.AtlasPerfTracer;
 import org.apache.commons.collections.CollectionUtils;
@@ -42,8 +42,10 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.apache.atlas.SortOrder.ASCENDING;
+import static org.apache.atlas.discovery.SearchContext.MATCH_ALL_CLASSIFICATION_TYPES;
 import static org.apache.atlas.discovery.SearchContext.MATCH_ALL_CLASSIFIED;
 import static org.apache.atlas.discovery.SearchContext.MATCH_ALL_NOT_CLASSIFIED;
 import static org.apache.atlas.discovery.SearchContext.MATCH_ALL_WILDCARD_CLASSIFICATION;
@@ -96,7 +98,7 @@ public class EntitySearchProcessor extends SearchProcessor {
         if (!isEntityRootType()) {
             typeNamePredicate = SearchPredicateUtil.getINPredicateGenerator().generatePredicate(TYPE_NAME_PROPERTY_KEY, typeAndSubTypes, String.class);
         } else {
-            typeNamePredicate = null;
+            typeNamePredicate = SearchPredicateUtil.generateIsEntityVertexPredicate(context.getTypeRegistry());
         }
 
         processSearchAttributes(entityType, filterCriteria, indexAttributes, graphAttributes, allAttributes);
@@ -106,23 +108,19 @@ public class EntitySearchProcessor extends SearchProcessor {
 
         StringBuilder indexQuery = new StringBuilder();
 
+        // TypeName check to be done in-memory as well to address ATLAS-2121 (case sensitivity)
+        inMemoryPredicate = typeNamePredicate;
+
         if (typeSearchByIndex) {
             graphIndexQueryBuilder.addTypeAndSubTypesQueryFilter(indexQuery, typeAndSubTypesQryStr);
-
-            // TypeName check to be done in-memory as well to address ATLAS-2121 (case sensitivity)
-            if (typeNamePredicate != null) {
-                inMemoryPredicate = typeNamePredicate;
-            }
         }
 
         if (attrSearchByIndex) {
             constructFilterQuery(indexQuery, entityType, filterCriteria, indexAttributes);
 
             Predicate attributePredicate = constructInMemoryPredicate(entityType, filterCriteria, indexAttributes);
-            if (inMemoryPredicate != null) {
+            if (attributePredicate != null) {
                 inMemoryPredicate = PredicateUtils.andPredicate(inMemoryPredicate, attributePredicate);
-            } else {
-                inMemoryPredicate = attributePredicate;
             }
         } else {
             graphAttributes.addAll(indexAttributes);
@@ -145,7 +143,7 @@ public class EntitySearchProcessor extends SearchProcessor {
         if (CollectionUtils.isNotEmpty(graphAttributes) || !typeSearchByIndex) {
             AtlasGraphQuery query = context.getGraph().query();
 
-            if (!typeSearchByIndex) {
+            if (!typeSearchByIndex && !isEntityRootType()) {
                 query.in(TYPE_NAME_PROPERTY_KEY, typeAndSubTypes);
             }
 
@@ -153,7 +151,7 @@ public class EntitySearchProcessor extends SearchProcessor {
             if (filterClassification) {
                 List<AtlasGraphQuery> orConditions = new LinkedList<>();
 
-                if (classificationType == MATCH_ALL_WILDCARD_CLASSIFICATION || classificationType == MATCH_ALL_CLASSIFIED) {
+                if (classificationType == MATCH_ALL_WILDCARD_CLASSIFICATION || classificationType == MATCH_ALL_CLASSIFIED || classificationType == MATCH_ALL_CLASSIFICATION_TYPES) {
                     orConditions.add(query.createChildQuery().has(TRAIT_NAMES_PROPERTY_KEY, NOT_EQUAL, null));
                     orConditions.add(query.createChildQuery().has(PROPAGATED_TRAIT_NAMES_PROPERTY_KEY, NOT_EQUAL, null));
                 } else if (classificationType == MATCH_ALL_NOT_CLASSIFIED) {
@@ -167,6 +165,10 @@ public class EntitySearchProcessor extends SearchProcessor {
                 query.or(orConditions);
 
                 // Construct a parallel in-memory predicate
+                if (isEntityRootType()) {
+                    inMemoryPredicate = typeNamePredicate;
+                }
+
                 if (graphQueryPredicate != null) {
                     graphQueryPredicate = PredicateUtils.andPredicate(graphQueryPredicate, traitPredicate);
                 } else {
@@ -196,22 +198,23 @@ public class EntitySearchProcessor extends SearchProcessor {
                     graphQueryPredicate = activePredicate;
                 }
             }
-
             if (sortBy != null && !sortBy.isEmpty()) {
-                AtlasGraphQuery.SortOrder qrySortOrder = sortOrder == SortOrder.ASCENDING ? ASC : DESC;
-                graphQuery.orderBy(sortBy, qrySortOrder);
+                AtlasAttribute sortByAttribute = context.getEntityType().getAttribute(sortBy);
+
+                if (sortByAttribute != null) {
+                    AtlasGraphQuery.SortOrder qrySortOrder = sortOrder == SortOrder.ASCENDING ? ASC : DESC;
+
+                    graphQuery.orderBy(sortByAttribute.getVertexPropertyName(), qrySortOrder);
+                }
             }
-
-
         } else {
             graphQuery = null;
             graphQueryPredicate = null;
         }
 
         // Prepare the graph query and in-memory filter for the filtering phase
-        if (typeNamePredicate != null) {
-            filterGraphQueryPredicate = typeNamePredicate;
-        }
+        filterGraphQueryPredicate = typeNamePredicate;
+
 
         Predicate attributesPredicate = constructInMemoryPredicate(entityType, filterCriteria, allAttributes);
 
@@ -263,7 +266,7 @@ public class EntitySearchProcessor extends SearchProcessor {
             String sortBy = context.getSearchParameters().getSortBy();
 
             final AtlasEntityType entityType = context.getEntityType();
-            AtlasStructType.AtlasAttribute sortByAttribute = entityType.getAttribute(sortBy);
+            AtlasAttribute sortByAttribute = entityType.getAttribute(sortBy);
             if (sortByAttribute == null) {
                 sortBy = null;
             } else {
@@ -284,14 +287,7 @@ public class EntitySearchProcessor extends SearchProcessor {
                 final boolean isLastResultPage;
 
                 if (indexQuery != null) {
-                    Iterator<AtlasIndexQuery.Result> idxQueryResult;
-
-                    if (StringUtils.isEmpty(sortBy)) {
-                        idxQueryResult = indexQuery.vertices(qryOffset, limit);
-                    } else {
-                        Order qrySortOrder = sortOrder == SortOrder.ASCENDING ? Order.asc : Order.desc;
-                        idxQueryResult = indexQuery.vertices(qryOffset, limit, sortBy, qrySortOrder);
-                    }
+                    Iterator<AtlasIndexQuery.Result> idxQueryResult = executeIndexQuery(context, indexQuery, qryOffset, limit);
 
                     getVerticesFromIndexQueryResult(idxQueryResult, entityVertices);
 
@@ -309,6 +305,14 @@ public class EntitySearchProcessor extends SearchProcessor {
                     getVertices(queryResult, entityVertices);
 
                     isLastResultPage = entityVertices.size() < limit;
+
+                    // Do in-memory filtering
+                    CollectionUtils.filter(entityVertices, inMemoryPredicate);
+
+                    //incase when operator is NEQ in pipeSeperatedSystemAttributes
+                    if (graphQueryPredicate != null) {
+                        CollectionUtils.filter(entityVertices, graphQueryPredicate);
+                    }
                 }
 
                 super.filter(entityVertices);
@@ -352,6 +356,12 @@ public class EntitySearchProcessor extends SearchProcessor {
 
     @Override
     public long getResultCount() {
-        return (indexQuery != null) ? indexQuery.vertexTotals() : -1;
+        if (indexQuery != null) {
+            return indexQuery.vertexTotals();
+        } else if (graphQuery != null) {
+            return StreamSupport.stream(graphQuery.vertexIds().spliterator(), false).count();
+        } else {
+            return -1L;
+        }
     }
 }

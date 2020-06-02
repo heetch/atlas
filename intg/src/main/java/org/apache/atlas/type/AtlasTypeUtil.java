@@ -28,7 +28,7 @@ import org.apache.atlas.model.typedef.AtlasClassificationDef;
 import org.apache.atlas.model.typedef.AtlasEntityDef;
 import org.apache.atlas.model.typedef.AtlasEnumDef;
 import org.apache.atlas.model.typedef.AtlasEnumDef.AtlasEnumElementDef;
-import org.apache.atlas.model.typedef.AtlasNamespaceDef;
+import org.apache.atlas.model.typedef.AtlasBusinessMetadataDef;
 import org.apache.atlas.model.typedef.AtlasRelationshipDef;
 import org.apache.atlas.model.typedef.AtlasRelationshipDef.PropagateTags;
 import org.apache.atlas.model.typedef.AtlasRelationshipDef.RelationshipCategory;
@@ -178,6 +178,13 @@ public class AtlasTypeUtil {
             Collections.<AtlasConstraintDef>emptyList());
     }
 
+    public static AtlasAttributeDef createOptionalAttrDef(String name, String dataType, Map<String, String> options, String desc) {
+        return new AtlasAttributeDef(name, dataType, true,
+                Cardinality.SINGLE, 0, 1,
+                false, false, false, "",
+                Collections.<AtlasConstraintDef>emptyList(), options, desc, 0, null);
+    }
+
     public static AtlasAttributeDef createRequiredAttrDef(String name, String dataType) {
         return new AtlasAttributeDef(name, dataType, false,
             Cardinality.SINGLE, 1, 1,
@@ -285,6 +292,13 @@ public class AtlasTypeUtil {
         return new AtlasEntityDef(name, description, version, Arrays.asList(attrDefs), superTypes, options);
     }
 
+    public static AtlasBusinessMetadataDef createBusinessMetadataDef(String name, String description, String typeVersion, AtlasAttributeDef... attributeDefs) {
+        if (attributeDefs == null || attributeDefs.length == 0) {
+            return new AtlasBusinessMetadataDef(name, description, typeVersion);
+        }
+        return new AtlasBusinessMetadataDef(name, description, typeVersion, Arrays.asList(attributeDefs));
+    }
+
     public static AtlasRelationshipDef createRelationshipTypeDef(String                  name,
                                                                  String                  description,
                                                                  String                  version,
@@ -321,8 +335,8 @@ public class AtlasTypeUtil {
                                             List<AtlasClassificationDef> traits,
                                             List<AtlasEntityDef> classes,
                                             List<AtlasRelationshipDef> relations,
-                                            List<AtlasNamespaceDef> namespaces) {
-        return new AtlasTypesDef(enums, structs, traits, classes, relations, namespaces);
+                                            List<AtlasBusinessMetadataDef> businessMetadataDefs) {
+        return new AtlasTypesDef(enums, structs, traits, classes, relations, businessMetadataDefs);
     }
 
     public static List<AtlasTypeDefHeader> toTypeDefHeader(AtlasTypesDef typesDef) {

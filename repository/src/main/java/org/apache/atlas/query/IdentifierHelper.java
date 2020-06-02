@@ -20,6 +20,9 @@ package org.apache.atlas.query;
 
 import org.apache.atlas.AtlasErrorCode;
 import org.apache.atlas.exception.AtlasBaseException;
+import org.apache.atlas.type.AtlasBusinessMetadataType;
+import org.apache.atlas.type.AtlasStructType.AtlasAttribute.AtlasRelationshipEdgeDirection;
+import org.apache.atlas.type.AtlasType;
 import org.apache.commons.lang.StringUtils;
 
 import java.util.regex.Matcher;
@@ -124,6 +127,7 @@ public class IdentifierHelper {
         private String   typeName;
         private String   attributeName;
         private boolean  isPrimitive;
+        private AtlasRelationshipEdgeDirection edgeDirection;
         private String   edgeLabel;
         private boolean  introduceType;
         private boolean  hasSubtypes;
@@ -148,7 +152,6 @@ public class IdentifierHelper {
                         raw = context.getTypeNameFromAlias(this.raw);
                     }
 
-                    updateParts();
                     updateTypeInfo(lookup, context);
                     setIsTrait(context, lookup, attributeName);
                     updateEdgeInfo(lookup, context);
@@ -156,7 +159,8 @@ public class IdentifierHelper {
                     updateSubTypes(lookup, context);
                 }
             } catch (NullPointerException ex) {
-                context.getErrorList().add(ex.getMessage());
+                String exception = (StringUtils.isNotEmpty(ex.getMessage()) ? ex.getMessage() : "Exception");
+                context.getErrorList().add(exception);
             }
         }
 
@@ -177,21 +181,36 @@ public class IdentifierHelper {
 
         private void updateEdgeInfo(org.apache.atlas.query.Lookup lookup, GremlinQueryComposer.Context context) {
             if (!isPrimitive && !isTrait && typeName != attributeName) {
+                edgeDirection = lookup.getRelationshipEdgeDirection(context, attributeName);
                 edgeLabel = lookup.getRelationshipEdgeLabel(context, attributeName);
                 typeName = lookup.getTypeFromEdge(context, attributeName);
             }
         }
 
         private void updateTypeInfo(org.apache.atlas.query.Lookup lookup, GremlinQueryComposer.Context context) {
+            parts = StringUtils.split(raw, ".");
+
+            // check if this is a business attribute
+            if (parts.length == 2) {
+                try {
+                    AtlasType type = lookup.getType(parts[0]);
+
+                    if (type instanceof AtlasBusinessMetadataType) {
+                        parts = new String[1];
+                        parts[0] = raw;
+                    }
+                } catch (AtlasBaseException excp) {
+                    // ignore
+                }
+            }
+
             if (parts.length == 1) {
                 typeName = context.hasAlias(parts[0]) ?
                                    context.getTypeNameFromAlias(parts[0]) :
                                    context.getActiveTypeName();
                 qualifiedName = getDefaultQualifiedNameForSinglePartName(context, parts[0]);
                 attributeName = parts[0];
-            }
-
-            if (parts.length == 2) {
+            } else if (parts.length == 2) {
                 boolean isAttrOfActiveType = lookup.hasAttribute(context, parts[0]);
                 if (isAttrOfActiveType) {
                     attributeName = parts[0];
@@ -210,7 +229,6 @@ public class IdentifierHelper {
             setIsDate(lookup, context, isPrimitive, attributeName);
             setIsNumeric(lookup, context, isPrimitive, attributeName);
         }
-
         private String getDefaultQualifiedNameForSinglePartName(GremlinQueryComposer.Context context, String s) {
             String qn = context.getTypeNameFromAlias(s);
             if (StringUtils.isEmpty(qn) && SelectClauseComposer.isKeyword(s)) {
@@ -242,10 +260,6 @@ public class IdentifierHelper {
             }
         }
 
-        private void updateParts() {
-            parts = StringUtils.split(raw, ".");
-        }
-
         public String getQualifiedName() {
             return qualifiedName;
         }
@@ -260,6 +274,10 @@ public class IdentifierHelper {
 
         public String getAttributeName() {
             return attributeName;
+        }
+
+        public AtlasRelationshipEdgeDirection getEdgeDirection() {
+            return edgeDirection;
         }
 
         public String getEdgeLabel() {

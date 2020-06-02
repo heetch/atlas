@@ -21,8 +21,9 @@ define(["require",
     "hbs!tmpl/search/GlobalSearchLayoutView_tmpl",
     "utils/Utils",
     "utils/UrlLinks",
+    'utils/Globals',
     "jquery-ui"
-], function(require, Backbone, GlobalSearchLayoutViewTmpl, Utils, UrlLinks) {
+], function(require, Backbone, GlobalSearchLayoutViewTmpl, Utils, UrlLinks, Globals) {
     "use strict";
 
     var GlobalSearchLayoutView = Backbone.Marionette.LayoutView.extend(
@@ -88,9 +89,7 @@ define(["require",
                 var that = this;
                 $("body").on("click", function(e) {
                     if (!that.isDestroyed && that.$(e.target).data("id") !== "detailSearch") {
-                        if ($(e.target).hasClass("modal") || $(e.target).parents(".modal-backdrop").length != 0 || $(e.target).parents(".modal").length != 0) {
-                            // console.log("modal");
-                        } else if ($(e.target).parents(".searchLayoutView").length === 0 && that.ui.searchLayoutView.hasClass("open")) {
+                        if ($(e.target).parents(".searchLayoutView").length === 0 && that.ui.searchLayoutView.hasClass("open")) {
                             that.ui.searchLayoutView.removeClass("open");
                         }
                     }
@@ -294,6 +293,17 @@ define(["require",
                                             item.itemText = Utils.getName(item) + " (" + item.typeName + ")";
                                             var options = {},
                                                 table = "";
+                                            if (item.serviceType === undefined) {
+                                                if (Globals.serviceTypeMap[item.typeName] === undefined && that.entityDefCollection) {
+                                                    var defObj = that.entityDefCollection.fullCollection.find({ name: item.typeName });
+                                                    if (defObj) {
+                                                        Globals.serviceTypeMap[item.typeName] = defObj.get("serviceType");
+                                                    }
+                                                }
+                                            } else if (Globals.serviceTypeMap[item.typeName] === undefined) {
+                                                Globals.serviceTypeMap[item.typeName] = item.serviceType;
+                                            }
+                                            item.serviceType = Globals.serviceTypeMap[item.typeName];
                                             options.entityData = item;
                                             var imgEl = $('<img src="' + Utils.getEntityIconPath(options) + '">').on("error", function(error, s) {
                                                 this.src = Utils.getEntityIconPath(_.extend(options, { errorUrl: this.src }));
@@ -304,7 +314,7 @@ define(["require",
                                             var span = $("<span>" + getHighlightedTerm(item.itemText) + "</span>").prepend(img);
                                             li = $("<li class='with-icon'>").append(span);
                                         } else {
-                                            li = $("<li>").append("<span>" + _.escape(getHighlightedTerm(item)) + "</span>");
+                                            li = $("<li>").append("<span>" + getHighlightedTerm(_.escape(item)) + "</span>");
                                         }
                                         li.data("ui-autocomplete-item", item);
                                         if (searchItem.category) {

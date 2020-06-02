@@ -42,18 +42,23 @@ define([
             entitySearchTree: '[data-id="entitySearchTree"]',
 
             // Show/hide empty values in tree
-            showEmptyServiceType: '[data-id="showEmptyServiceType"]'
+            showEmptyServiceType: '[data-id="showEmptyServiceType"]',
+            entityTreeLoader: '[data-id="entityTreeLoader"]',
+            importBusinessMetadata: "[data-id='importBusinessMetadata']",
+            downloadBusinessMetadata: "[data-id='downloadBusinessMetadata']"
         },
         templateHelpers: function() {
             return {
-                apiBaseUrl: UrlLinks.apiBaseUrl
+                apiBaseUrl: UrlLinks.apiBaseUrl,
+                importTmplUrl: UrlLinks.businessMetadataImportTempUrl()
             };
         },
         events: function() {
             var events = {},
                 that = this;
-            // refresh individual tree
             events["click " + this.ui.refreshTree] = function(e) {
+                that.changeLoaderState(true);
+                this.ui.refreshTree.attr("disabled", true).tooltip("hide");
                 var type = $(e.currentTarget).data("type");
                 e.stopPropagation();
                 that.ui[type + "SearchTree"].jstree(true).destroy();
@@ -74,9 +79,15 @@ define([
                 this.ui.groupOrFlatTree.tooltip('hide');
                 this.ui.groupOrFlatTree.find("i").toggleClass("fa-sitemap fa-list-ul");
                 this.ui.groupOrFlatTree.find("span").html(this.isGroupView ? "Show flat tree" : "Show group tree");
-
                 that.ui[type + "SearchTree"].jstree(true).destroy();
                 that.renderEntityTree();
+            };
+            events["click " + this.ui.importBusinessMetadata] = function(e) {
+                e.stopPropagation();
+                that.onClickImportBusinessMetadata();
+            };
+            events["click " + this.ui.downloadBusinessMetadata] = function(e) {
+                e.stopPropagation();
             };
 
             return events;
@@ -88,18 +99,20 @@ define([
                 that[$(this).find('a').data('fn') + "Entity"](e)
             });
             this.searchVent.on("Entity:Count:Update", function(options) {
+                that.changeLoaderState(true);
                 var opt = options || {};
                 if (opt && !opt.metricData) {
                     that.metricCollection.fetch({
-                        skipDefaultError: true,
                         complete: function() {
                             that.entityCountObj = _.first(that.metricCollection.toJSON());
                             that.ui.entitySearchTree.jstree(true).refresh();
+                            that.changeLoaderState(false);
                         }
                     });
                 } else {
                     that.entityCountObj = opt.metricData;
                     that.ui.entitySearchTree.jstree(true).refresh();
+                    that.changeLoaderState(false);
                 }
             });
         },
@@ -127,8 +140,19 @@ define([
             this.isGroupView = true;
         },
         onRender: function() {
+            this.changeLoaderState(true);
             this.renderEntityTree();
             this.createEntityAction();
+            this.changeLoaderState(false);
+        },
+        changeLoaderState: function(showLoader) {
+            if (showLoader) {
+                this.ui.entitySearchTree.hide();
+                this.ui.entityTreeLoader.show();
+            } else {
+                this.ui.entitySearchTree.show();
+                this.ui.entityTreeLoader.hide();
+            }
         },
         createEntityAction: function() {
             var that = this;
@@ -172,23 +196,27 @@ define([
                 this.ui.entitySearchTree.jstree(true).deselect_all();
                 this.typeId = null;
             } else {
-                var dataFound = this.typeHeaders.fullCollection.find(function(obj) {
-                    return obj.get("name") === that.options.value.type
-                });
-                if (dataFound) {
-                    if ((this.typeId && this.typeId !== dataFound.get("guid")) || this.typeId === null) {
-                        if (this.typeId) {
-                            this.ui.entitySearchTree.jstree(true).deselect_node(this.typeId);
-                        }
-                        this.fromManualRender = true;
-                        this.typeId = dataFound.get("guid");
-                        this.ui.entitySearchTree.jstree(true).select_node(dataFound.get("guid"));
-                    }
-                }
-                if (!dataFound && Globals[that.options.value.type]) {
+                if (that.options.value.type === "_ALL_ENTITY_TYPES" && this.typeId !== "_ALL_ENTITY_TYPES") {
                     this.fromManualRender = true;
+                    if (this.typeId) {
+                        this.ui.entitySearchTree.jstree(true).deselect_node(this.typeId);
+                    }
                     this.typeId = Globals[that.options.value.type].guid;
                     this.ui.entitySearchTree.jstree(true).select_node(this.typeId);
+                } else if (this.typeId !== "_ALL_ENTITY_TYPES" && that.options.value.type !== this.typeId) {
+                    var dataFound = this.typeHeaders.fullCollection.find(function(obj) {
+                        return obj.get("name") === that.options.value.type
+                    });
+                    if (dataFound) {
+                        if ((this.typeId && this.typeId !== dataFound.get("guid")) || this.typeId === null) {
+                            if (this.typeId) {
+                                this.ui.entitySearchTree.jstree(true).deselect_node(this.typeId);
+                            }
+                            this.fromManualRender = true;
+                            this.typeId = dataFound.get("guid");
+                            this.ui.entitySearchTree.jstree(true).select_node(dataFound.get("guid"));
+                        }
+                    }
                 }
             }
         },
@@ -302,14 +330,14 @@ define([
                                 text: _.escape(modelname),
                                 name: model.get("name"),
                                 type: model.get("category"),
-                                gType: "serviceType",
+                                gType: "Entity",
                                 guid: model.get("guid"),
                                 id: model.get("guid"),
                                 model: model,
                                 parent: "#",
                                 icon: "fa fa-file-o",
                                 state: {
-                                    disabled: entityCount == 0 ? true : false,
+                                    disabled: false,
                                     selected: isSelected
                                 },
                             };
@@ -337,7 +365,7 @@ define([
                         text: _.escape(rootEntity.name),
                         name: rootEntity.name,
                         type: rootEntity.category,
-                        gType: "serviceType",
+                        gType: "Entity",
                         guid: rootEntity.guid,
                         id: rootEntity.guid,
                         model: rootEntity,
@@ -390,7 +418,7 @@ define([
                             parent = {
                                 icon: "fa fa-folder-o",
                                 type: type,
-                                gType: "serviceType",
+                                gType: "ServiceType",
                                 children: getParrent.children,
                                 text: _.escape(textName),
                                 name: data[parents[i]].name,
@@ -489,12 +517,14 @@ define([
                 var aType = that.$("#" + str.node.a_attr.id),
                     typeOffset = aType.find(">.jstree-icon").offset();
                 that.$(".tree-tooltip").removeClass("show");
-                if (typeOffset.top && typeOffset.left) {
-                    aType.find(">span.tree-tooltip").css({
-                        top: "calc(" + typeOffset.top + "px - 45px)",
-                        left: "24px"
-                    }).addClass("show");
-                }
+                setTimeout(function() {
+                    if (aType.hasClass("jstree-hovered") && typeOffset.top && typeOffset.left) {
+                        aType.find(">span.tree-tooltip").css({
+                            top: "calc(" + typeOffset.top + "px - 45px)",
+                            left: "24px"
+                        }).addClass("show");
+                    }
+                }, 1200);
             }).on("dehover_node.jstree", function(nodes, str, res) {
                 that.$(".tree-tooltip").removeClass("show");
             });
@@ -505,10 +535,11 @@ define([
                 renderTree = function() {
                     if (apiCount === 0) {
                         that.renderEntityTree();
+                        that.changeLoaderState(false);
+                        that.ui.refreshTree.attr("disabled", false);
                     }
                 };
             this.entityDefCollection.fetch({
-                skipDefaultError: true,
                 complete: function() {
                     that.entityDefCollection.fullCollection.comparator = function(model) {
                         return model.get('name').toLowerCase();
@@ -520,7 +551,6 @@ define([
             });
 
             this.metricCollection.fetch({
-                skipDefaultError: true,
                 complete: function() {
                     --apiCount;
                     that.entityCountObj = _.first(that.metricCollection.toJSON());
@@ -529,7 +559,6 @@ define([
             });
 
             this.typeHeaders.fetch({
-                skipDefaultError: true,
                 complete: function() {
                     that.typeHeaders.fullCollection.comparator = function(model) {
                         return model.get('name').toLowerCase();
@@ -539,7 +568,14 @@ define([
                     renderTree();
                 }
             });
-
+        },
+        onClickImportBusinessMetadata: function() {
+            var that = this;
+            require([
+                'views/import/ImportLayoutView'
+            ], function(ImportLayoutView) {
+                var view = new ImportLayoutView({});
+            });
         }
     });
     return EntityTreeLayoutview;

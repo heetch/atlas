@@ -33,6 +33,17 @@
     <title>Atlas</title>
     <meta name="description" content="" />
     <meta name="viewport" content="width=device-width" />
+    <script type="text/javascript">
+    var isHtmlInPath = window.location.pathname.indexOf("index.html");
+    if (isHtmlInPath === -1) {
+        var pathname = window.location.pathname.replace(/\/[\w-]+.(jsp|html)|\/+$/ig, ''),
+            indexpath = pathname + "/index.html";
+        if (location.hash.length > 2) {
+            indexpath += location.hash;
+        }
+        window.location.replace(indexpath);
+    }
+    </script>
     <link rel="shortcut icon" href="img/favicon.ico?bust=<%- bust %>" type="image/x-icon" />
     <link rel="icon" href="img/favicon.ico?bust=<%- bust %>" type="image/x-icon" />
     <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
@@ -56,6 +67,7 @@
     <link rel="stylesheet" href="js/libs/nvd3/css/nv.d3.min.css?bust=<%- bust %>">
     <link href="js/libs/jstree/css/default-dark/default-dark-theme.min.css?bust=<%- bust %>" rel="stylesheet">
     <link href="js/libs/pretty-checkbox/css/pretty-checkbox.min.css?bust=<%- bust %>" rel="stylesheet">
+    <link href="js/libs/dropzone/css/dropzone.css?bust=<%- bust %>" rel="stylesheet">
     <link href="js/libs/jstree/css/default/default-theme.min.css?bust=<%- bust %>" rel="stylesheet">
     <link href="css/style.css?bust=<%- bust %>" rel="stylesheet">
 </head>
@@ -66,15 +78,12 @@
             <div id="sideNav-wrapper"></div>
         </div>
         <div id="page-content-wrapper" class="page-content-wrapper">
-            <header id="new-header" class="clearfix"></header>
+            <div id="new-header" class="clearfix"></div>
             <div id="new-page-wrapper">
                 <div>
                     <div class="initialLoading"></div>
                 </div>
             </div>
-        </div>
-        <div class="footer-content">
-            <a href="javascript:void(0)" id="sUI">Switch to Beta UI</a>
         </div>
     </div>
     <!-- build:js scripts/main.js -->

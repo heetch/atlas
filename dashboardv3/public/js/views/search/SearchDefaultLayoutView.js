@@ -48,19 +48,26 @@ define(["require", "backbone", "utils/Globals", "hbs!tmpl/search/SearchDefaultLa
                 entityName: ".entityName",
                 classificationName: ".classificationName",
                 createNewEntity: '[data-id="createNewEntity"]',
-                clearQuerySearch: "[data-id='clearQuerySearch']"
+                clearQuerySearch: "[data-id='clearQuerySearch']",
+                refreshSearchQuery: "[data-id='refreshSearchResult']"
             },
             /** ui events hash */
             events: function() {
                 var events = {},
                     that = this;
                 events["click " + this.ui.attrFilter] = function(e) {
-                    // this.$('.fa-chevron-right').toggleClass('fa-chevron-down');
+                    if (this.$('.attribute-filter-container').hasClass("hide")) {
+                        this.onClickAttrFilter();
+                        this.$('.attributeResultContainer').addClass("overlay");
+                    } else {
+                        this.$('.attributeResultContainer').removeClass("overlay");
+                    }
                     this.$('.fa-angle-right').toggleClass('fa-angle-down');
-                    this.$('.attributeResultContainer').addClass("overlay");
                     this.$('.attribute-filter-container, .attr-filter-overlay').toggleClass('hide');
-                    // this.$('.attribute-filter-container').toggleClass('attribute-filter-container')
-                    this.onClickAttrFilter();
+                };
+
+                events["click " + this.ui.refreshSearchQuery] = function(e) {
+                    this.options.searchVent.trigger('search:refresh');
                 };
 
                 events["click " + this.ui.attrApply] = function(e) {
@@ -201,12 +208,14 @@ define(["require", "backbone", "utils/Globals", "hbs!tmpl/search/SearchDefaultLa
             manualRender: function(options) {
                 _.extend(this.options, options);
                 this.updateView();
+                this.onClickAttrFilter();
                 this.renderSearchResult();
             },
             renderGlobalSearch: function() {
                 var that = this;
                 require(["views/search/GlobalSearchLayoutView"], function(GlobalSearchLayoutView) {
-                    that.RGlobalSearchLayoutView.show(new GlobalSearchLayoutView(_.extend({ closeOnSubmit: true }, that.options)));
+
+                    that.RGlobalSearchLayoutView.show(new GlobalSearchLayoutView(_.extend({ closeOnSubmit: true }, _.omit(that.options, "value"))));
                 });
             },
             renderSearchResult: function() {
@@ -226,77 +235,82 @@ define(["require", "backbone", "utils/Globals", "hbs!tmpl/search/SearchDefaultLa
                 }
                 return options.searchTableFilters;
             },
-            onClickAttrFilter: function(filterType) {
+            onClickAttrFilter: function() {
                 var that = this,
                     obj = {
                         value: that.options.value,
                         searchVent: that.options.searchVent,
                         entityDefCollection: that.options.entityDefCollection,
                         enumDefCollection: that.options.enumDefCollection,
+                        typeHeaders: that.options.typeHeaders,
                         classificationDefCollection: that.options.classificationDefCollection,
+                        businessMetadataDefCollection: that.options.businessMetadataDefCollection,
                         searchTableFilters: that.checkEntityFilter(that.options)
                     };
-                this.ui.checkDeletedEntity.prop('checked', this.options.value.includeDE ? this.options.value.includeDE : false);
-                this.ui.checkSubClassification.prop('checked', this.options.value.excludeSC ? this.options.value.excludeSC : false);
-                this.ui.checkSubType.prop('checked', this.options.value.excludeST ? this.options.value.excludeST : false);
+                if (that.options.value) {
+                    this.ui.checkDeletedEntity.prop('checked', this.options.value.includeDE ? this.options.value.includeDE : false);
+                    this.ui.checkSubClassification.prop('checked', this.options.value.excludeSC ? this.options.value.excludeSC : false);
+                    this.ui.checkSubType.prop('checked', this.options.value.excludeST ? this.options.value.excludeST : false);
 
-                if (that.options.value.tag && that.options.value.type) {
-                    this.$('.attribute-filter-container').removeClass('no-attr');
-                    this.ui.classificationRegion.show();
-                    this.ui.entityRegion.show();
-                } else {
-                    if (!that.options.value.tag && !that.options.value.type) {
-                        this.$('.attribute-filter-container').addClass('no-attr');
+                    if (that.options.value.tag && that.options.value.type) {
+                        this.$('.attribute-filter-container').removeClass('no-attr');
+                        this.ui.classificationRegion.show();
+                        this.ui.entityRegion.show();
+                    } else {
+                        if (!that.options.value.tag && !that.options.value.type) {
+                            this.$('.attribute-filter-container').addClass('no-attr');
+                        }
+                        this.ui.entityRegion.hide();
+                        this.ui.classificationRegion.hide();
                     }
-                    this.ui.entityRegion.hide();
-                    this.ui.classificationRegion.hide();
-                }
-                if (that.options.value.tag) {
-                    this.ui.classificationRegion.show();
-                    // this.ui.entityRegion.hide();
-                    var attrTagObj = that.options.classificationDefCollection.fullCollection.find({ name: that.options.value.tag });
-                    if (attrTagObj) {
-                        attrTagObj = Utils.getNestedSuperTypeObj({
-                            data: attrTagObj.toJSON(),
-                            collection: that.options.classificationDefCollection,
-                            attrMerge: true,
-                        });
-                        this.tagAttributeLength = attrTagObj.length;
+                    if (that.options.value.tag) {
+                        this.ui.classificationRegion.show();
+                        // this.ui.entityRegion.hide();
+                        var attrTagObj = that.options.classificationDefCollection.fullCollection.find({ name: that.options.value.tag });
+                        if (attrTagObj) {
+                            attrTagObj = Utils.getNestedSuperTypeObj({
+                                data: attrTagObj.toJSON(),
+                                collection: that.options.classificationDefCollection,
+                                attrMerge: true,
+                            });
+                            this.tagAttributeLength = attrTagObj.length;
+                        }
+                        if (Globals[that.options.value.tag] || Globals[Enums.addOnClassification[0]]) {
+                            obj.systemAttrArr = (Globals[that.options.value.tag] || Globals[Enums.addOnClassification[0]]).attributeDefs;
+                            this.tagAttributeLength = obj.systemAttrArr.length;
+                        }
+                        this.renderQueryBuilder(_.extend({}, obj, {
+                            tag: true,
+                            type: false,
+                            attrObj: attrTagObj
+                        }), this.RQueryBuilderClassification);
+                        this.ui.classificationName.html(that.options.value.tag);
                     }
-                    if (Globals[that.options.value.tag] || Globals[Enums.addOnClassification[0]]) {
-                        obj.systemAttrArr = (Globals[that.options.value.tag] || Globals[Enums.addOnClassification[0]]).attributeDefs;
-                        this.tagAttributeLength = obj.systemAttrArr.length;
-                    }
-                    this.renderQueryBuilder(_.extend({}, obj, {
-                        tag: true,
-                        type: false,
-                        attrObj: attrTagObj
-                    }), this.RQueryBuilderClassification);
-                    this.ui.classificationName.html(that.options.value.tag);
-                }
-                if (that.options.value.type) {
-                    this.ui.entityRegion.show();
-                    var attrTypeObj = that.options.entityDefCollection.fullCollection.find({ name: that.options.value.type });
-                    if (attrTypeObj) {
-                        attrTypeObj = Utils.getNestedSuperTypeObj({
-                            data: attrTypeObj.toJSON(),
-                            collection: that.options.entityDefCollection,
-                            attrMerge: true
-                        });
-                        this.entityAttributeLength = attrTypeObj.length;
-                    }
-                    if (Globals[that.options.value.type] || Globals[Enums.addOnEntities[0]]) {
-                        obj.systemAttrArr = (Globals[that.options.value.type] || Globals[Enums.addOnEntities[0]]).attributeDefs;
-                        this.entityAttributeLength = obj.systemAttrArr.length;
-                    }
-                    this.renderQueryBuilder(_.extend({}, obj, {
-                        tag: false,
-                        type: true,
-                        attrObj: attrTypeObj
-                    }), this.RQueryBuilderEntity);
+                    if (that.options.value.type) {
+                        this.ui.entityRegion.show();
+                        var attrTypeObj = that.options.entityDefCollection.fullCollection.find({ name: that.options.value.type });
+                        if (attrTypeObj) {
+                            attrTypeObj = Utils.getNestedSuperTypeObj({
+                                data: attrTypeObj.toJSON(),
+                                collection: that.options.entityDefCollection,
+                                attrMerge: true
+                            });
+                            this.entityAttributeLength = attrTypeObj.length;
+                        }
+                        if (Globals[that.options.value.type] || Globals[Enums.addOnEntities[0]]) {
+                            obj.systemAttrArr = (Globals[that.options.value.type] || Globals[Enums.addOnEntities[0]]).attributeDefs;
+                            this.entityAttributeLength = obj.systemAttrArr.length;
+                        }
+                        this.renderQueryBuilder(_.extend({}, obj, {
+                            tag: false,
+                            type: true,
+                            attrObj: attrTypeObj
+                        }), this.RQueryBuilderEntity);
 
-                    this.ui.entityName.html(that.options.value.type);
+                        this.ui.entityName.html(that.options.value.type);
+                    }
                 }
+
             },
             okAttrFilterButton: function(e) {
                 var isTag,
@@ -324,10 +338,16 @@ define(["require", "backbone", "utils/Globals", "hbs!tmpl/search/SearchDefaultLa
                 filterPopupStatus();
 
                 function searchAttribute() {
-                    if (queryBuilderRef.data("queryBuilder")) {
-                        var rule = queryBuilderRef.queryBuilder("getRules");
+                    var queryBuilderObj = queryBuilderRef.data("queryBuilder");
+                    if (queryBuilderObj) {
+                        var ruleWithInvalid = queryBuilderObj.getRules({ allow_invalid: true }),
+                            rule = queryBuilderObj.getRules();
+                        rule ? that.updateFilterOptions(rule, filtertype, isTag) : isFilterValidate = false;
+                        if (ruleWithInvalid && ruleWithInvalid.rules.length === 1 && ruleWithInvalid.rules[0].id === null) {
+                            isFilterValidate = true;
+                            queryBuilderObj.clearErrors();
+                        }
                     }
-                    rule ? that.updateFilterOptions(rule, filtertype, isTag) : isFilterValidate = false;
                 }
 
                 function filterPopupStatus() {
@@ -343,27 +363,28 @@ define(["require", "backbone", "utils/Globals", "hbs!tmpl/search/SearchDefaultLa
             },
             getIdFromRuleObj: function(rule) {
                 var that = this,
-                    col = [];
+                    col = new Set();
                 _.map(rule.rules, function(obj, key) {
                     if (obj.id === "__state") {
                         that.options.value.includeDE = (obj.value === "ACTIVE" && obj.operator === "=") || (obj.value === "DELETED" && obj.operator === "!=") ? false : true;
                     }
                     if (_.has(obj, "condition")) {
-                        return this.getIdFromRuleObj(obj);
+                        return that.getIdFromRuleObj(obj);
                     } else {
-                        return col.push(obj.id);
+                        return col.add(obj.id);
                     }
                 });
-                return col;
+                return Array.from(col);
             },
             updateFilterOptions: function(rule, filtertype, isTag) {
-                var ruleUrl = CommonViewFunction.attributeFilter.generateUrl({ value: rule, formatedDateToLong: true });
+                var that = this,
+                    ruleUrl = CommonViewFunction.attributeFilter.generateUrl({ value: rule, formatedDateToLong: true });
                 this.options.searchTableFilters[filtertype][isTag ? this.options.value.tag : this.options.value.type] = ruleUrl;
                 if (!isTag && this.options.value && this.options.value.type && this.options.searchTableColumns) {
                     if (!this.options.searchTableColumns[this.options.value.type]) {
-                        this.options.searchTableColumns[this.options.value.type] = ["selected", "name", "owner", "description", "tag", "typeName"];
+                        this.options.searchTableColumns[this.options.value.type] = ["selected", "name", "description", "typeName", "owner", "tag", "term"];
                     }
-                    this.options.searchTableColumns[this.options.value.type] = _.sortBy(_.union(this.options.searchTableColumns[this.options.value.type], this.getIdFromRuleObj(rule)));
+                    this.options.searchTableColumns[this.options.value.type] = _.sortBy(_.union(_.without(this.options.searchTableColumns[this.options.value.type]), this.getIdFromRuleObj(rule)));
                 }
             },
             renderQueryBuilder: function(obj, rQueryBuilder) {

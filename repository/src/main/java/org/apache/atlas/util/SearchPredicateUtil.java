@@ -19,6 +19,8 @@ package org.apache.atlas.util;
 
 import org.apache.atlas.repository.graphdb.AtlasVertex;
 import org.apache.atlas.repository.store.graph.v2.AtlasGraphUtilsV2;
+import org.apache.atlas.type.AtlasEntityType;
+import org.apache.atlas.type.AtlasTypeRegistry;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.Predicate;
 import org.apache.commons.lang.StringUtils;
@@ -28,6 +30,8 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class SearchPredicateUtil {
     private static final Logger LOG = LoggerFactory.getLogger(SearchPredicateUtil.class);
@@ -275,7 +279,7 @@ public class SearchPredicateUtil {
             public Predicate generatePredicate(final String attrName, final Object attrVal, final Class attrClass) {
                 final Predicate ret;
 
-                if (attrName == null || attrClass == null || attrVal == null) {
+                if (attrName == null || attrClass == null) {
                     ret = ALWAYS_FALSE;
                 } else if (Boolean.class.isAssignableFrom(attrClass)) {
                     ret = BooleanPredicate.getNEQPredicate(attrName, attrClass, (Boolean)attrVal);
@@ -418,6 +422,35 @@ public class SearchPredicateUtil {
         return ret;
     }
 
+    public static VertexAttributePredicateGenerator getRegexPredicateGenerator() {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("==> getRegexPredicateGenerator");
+        }
+
+        VertexAttributePredicateGenerator ret = new VertexAttributePredicateGenerator() {
+            @Override
+            public Predicate generatePredicate(final String attrName, final Object attrVal, final Class attrClass) {
+                final Predicate ret;
+
+                if (attrName == null || attrClass == null || attrVal == null) {
+                    ret = ALWAYS_FALSE;
+                } else if (String.class.isAssignableFrom(attrClass)) {
+                    ret = StringPredicate.getRegexPredicate(attrName, attrClass, (String) attrVal);
+                } else {
+                    ret = ALWAYS_FALSE;
+                }
+
+                return ret;
+            }
+        };
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("<== getRegexPredicateGenerator");
+        }
+
+        return ret;
+    }
+
     public static VertexAttributePredicateGenerator getLIKEPredicateGenerator() {
         if (LOG.isDebugEnabled()) {
             LOG.debug("==> getLIKEPredicateGenerator");
@@ -537,6 +570,43 @@ public class SearchPredicateUtil {
 
         if (LOG.isDebugEnabled()) {
             LOG.debug("<== getContainsPredicateGenerator");
+        }
+
+        return ret;
+    }
+
+    public static VertexAttributePredicateGenerator getNotContainsPredicateGenerator() {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("==> getNotContainsPredicateGenerator");
+        }
+
+        VertexAttributePredicateGenerator ret = new VertexAttributePredicateGenerator() {
+            @Override
+            public Predicate generatePredicate(final String attrName, final Object attrVal, final Class attrClass) {
+                final Predicate ret;
+
+                if (attrName == null || attrClass == null) {
+                    ret = ALWAYS_FALSE;
+                } else if (String.class.isAssignableFrom(attrClass)) {
+                    ret = StringPredicate.getNotContainsPredicate(attrName, attrClass, (String) attrVal);
+                } else if (Collection.class.isAssignableFrom(attrClass)) {
+                    // Check if the provided value is present in the list of stored values
+                    ret = new VertexAttributePredicate(attrName, attrClass,true) {
+                        @Override
+                        protected boolean compareValue(final Object vertexAttrVal) {
+                            return vertexAttrVal == null || !((Collection) vertexAttrVal).contains(attrVal);
+                        }
+                    };
+                } else {
+                    ret = ALWAYS_FALSE;
+                }
+
+                return ret;
+            }
+        };
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("<== getNotContainsPredicateGenerator");
         }
 
         return ret;
@@ -747,6 +817,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        BooleanPredicate(String attrName, Class attrClass, Boolean value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Boolean value) {
             return new SearchPredicateUtil.BooleanPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -756,9 +831,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Boolean value) {
-            return new SearchPredicateUtil.BooleanPredicate(attrName, attrClass, value) {
+            return new SearchPredicateUtil.BooleanPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Boolean) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Boolean) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -773,6 +848,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        ShortPredicate(String attrName, Class attrClass, Short value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Short value) {
             return new ShortPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -782,9 +862,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Short value) {
-            return new ShortPredicate(attrName, attrClass, value) {
+            return new ShortPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Short) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Short) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -831,6 +911,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        IntegerPredicate(String attrName, Class attrClass, Integer value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Integer value) {
             return new IntegerPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -840,9 +925,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Integer value) {
-            return new IntegerPredicate(attrName, attrClass, value) {
+            return new IntegerPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Integer) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Integer) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -889,6 +974,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        LongPredicate(String attrName, Class attrClass, Long value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Long value) {
             return new LongPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -898,9 +988,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Long value) {
-            return new LongPredicate(attrName, attrClass, value) {
+            return new LongPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Long) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Long) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -947,6 +1037,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        FloatPredicate(String attrName, Class attrClass, Float value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Float value) {
             return new FloatPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -956,9 +1051,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Float value) {
-            return new FloatPredicate(attrName, attrClass, value) {
+            return new FloatPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Float) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Float) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -1005,6 +1100,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        DoublePredicate(String attrName, Class attrClass, Double value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Double value) {
             return new DoublePredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -1014,9 +1114,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Double value) {
-            return new DoublePredicate(attrName, attrClass, value) {
+            return new DoublePredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Double) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Double) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -1063,6 +1163,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        BytePredicate(String attrName, Class attrClass, Byte value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, Byte value) {
             return new BytePredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -1072,9 +1177,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, Byte value) {
-            return new BytePredicate(attrName, attrClass, value) {
+            return new BytePredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((Byte) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((Byte) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -1121,6 +1226,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        BigIntegerPredicate(String attrName, Class attrClass, BigInteger value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, BigInteger value) {
             return new BigIntegerPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -1130,9 +1240,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, BigInteger value) {
-            return new BigIntegerPredicate(attrName, attrClass, value) {
+            return new BigIntegerPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((BigInteger) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((BigInteger) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -1179,6 +1289,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        BigDecimalPredicate(String attrName, Class attrClass, BigDecimal value, boolean isNullValid) {
+            super(attrName, attrClass, true);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, BigDecimal value) {
             return new BigDecimalPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -1188,9 +1303,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, BigDecimal value) {
-            return new BigDecimalPredicate(attrName, attrClass, value) {
+            return new BigDecimalPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((BigDecimal) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((BigDecimal) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -1237,6 +1352,11 @@ public class SearchPredicateUtil {
             this.value = value;
         }
 
+        StringPredicate(String attrName, Class attrClass, String value, boolean isNullValid) {
+            super(attrName, attrClass, isNullValid);
+            this.value = value;
+        }
+
         static VertexAttributePredicate getEQPredicate(String attrName, Class attrClass, String value) {
             return new StringPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -1246,9 +1366,9 @@ public class SearchPredicateUtil {
         }
 
         static VertexAttributePredicate getNEQPredicate(String attrName, Class attrClass, String value) {
-            return new StringPredicate(attrName, attrClass, value) {
+            return new StringPredicate(attrName, attrClass, value, true) {
                 protected boolean compareValue(Object vertexAttrVal) {
-                    return ((String) vertexAttrVal).compareTo(value) != 0;
+                    return vertexAttrVal == null || ((String) vertexAttrVal).compareTo(value) != 0;
                 }
             };
         }
@@ -1293,6 +1413,14 @@ public class SearchPredicateUtil {
             };
         }
 
+        static VertexAttributePredicate getNotContainsPredicate(String attrName, Class attrClass, String value) {
+            return new StringPredicate(attrName, attrClass, value, true) {
+                protected boolean compareValue(Object vertexAttrVal) {
+                    return vertexAttrVal == null || !((String) vertexAttrVal).contains(value);
+                }
+            };
+        }
+
         static VertexAttributePredicate getStartsWithPredicate(String attrName, Class attrClass, String value) {
             return new StringPredicate(attrName, attrClass, value) {
                 protected boolean compareValue(Object vertexAttrVal) {
@@ -1308,5 +1436,49 @@ public class SearchPredicateUtil {
                 }
             };
         }
+
+        static VertexAttributePredicate getRegexPredicate(String attrName, Class attrClass, String value) {
+            return new StringPredicate(attrName, attrClass, value) {
+                protected boolean compareValue(Object vertexAttrVal) {
+                    Pattern pattern = Pattern.compile(value, Pattern.CASE_INSENSITIVE);
+                    Matcher matcher = pattern.matcher((String) vertexAttrVal);
+                    return matcher.matches();
+                }
+            };
+        }
     }
+
+    public static Predicate generateIsEntityVertexPredicate(AtlasTypeRegistry typeRegistry) {
+        return new IsEntityVertexPredicate(typeRegistry);
+    }
+
+
+    static class IsEntityVertexPredicate implements Predicate {
+        final AtlasTypeRegistry typeRegistry;
+
+
+        public IsEntityVertexPredicate(AtlasTypeRegistry typeRegistry) {
+            this.typeRegistry = typeRegistry;
+        }
+
+        @Override
+        public boolean evaluate(final Object object) {
+            final boolean ret;
+
+            AtlasVertex vertex = (object instanceof AtlasVertex) ? (AtlasVertex) object : null;
+
+            if (vertex != null) {
+                String typeName            = AtlasGraphUtilsV2.getTypeName(vertex);
+                AtlasEntityType entityType = typeRegistry.getEntityTypeByName(typeName);
+
+                ret = entityType != null && !entityType.isInternalType();
+            } else {
+                ret = false;
+            }
+
+            return ret;
+        }
+
+    }
+
 }

@@ -29,7 +29,9 @@ import org.apache.atlas.model.instance.AtlasObjectId;
 import org.apache.atlas.model.instance.EntityMutationResponse;
 import org.apache.atlas.repository.store.graph.v2.EntityStream;
 import org.apache.atlas.type.AtlasEntityType;
+import org.apache.atlas.bulkimport.BulkImportResponse;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -150,6 +152,14 @@ public interface AtlasEntityStore {
     EntityMutationResponse createOrUpdateForImport(EntityStream entityStream) throws AtlasBaseException;
 
     /**
+     * Create or update  entities with parameters necessary for import process without commit. Caller will have to do take care of commit.
+     * @param entityStream AtlasEntityStream
+     * @return EntityMutationResponse Entity mutations operations with the corresponding set of entities on which these operations were performed
+     * @throws AtlasBaseException
+     */
+    EntityMutationResponse createOrUpdateForImportNoCommit(EntityStream entityStream) throws AtlasBaseException;
+
+    /**
      * Update a single entity
      * @param objectId     ID of the entity
      * @param updatedEntityInfo updated entity information
@@ -248,6 +258,23 @@ public interface AtlasEntityStore {
     void setLabels(String guid, Set<String> labels) throws AtlasBaseException;
 
     /**
+     *
+     * @param guid
+     * @param businessAttrbutes
+     * @param isOverwrite
+     * @throws AtlasBaseException
+     */
+    void addOrUpdateBusinessAttributes(String guid, Map<String, Map<String, Object>> businessAttrbutes, boolean isOverwrite) throws AtlasBaseException;
+
+    /**
+     *
+     * @param guid
+     * @param businessAttributes
+     * @throws AtlasBaseException
+     */
+    void removeBusinessAttributes(String guid, Map<String, Map<String, Object>> businessAttributes) throws AtlasBaseException;
+
+    /**
      * Remove given labels, if labels is null/empty, no labels will be removed. If any labels in
      * labels set are non-existing labels, they will be ignored, only existing labels will be removed.
      */
@@ -257,4 +284,13 @@ public interface AtlasEntityStore {
      * Add given labels to the given entity, if labels is null/empty, no labels will be added.
      */
     void addLabels(String guid, Set<String> labels) throws AtlasBaseException;
+
+    /**
+     *
+     * @param inputStream
+     * @param fileName
+     * @throws AtlasBaseException
+     *
+     */
+    BulkImportResponse bulkCreateOrUpdateBusinessAttributes(InputStream inputStream, String fileName) throws AtlasBaseException;
 }

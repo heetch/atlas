@@ -34,6 +34,7 @@ import org.apache.atlas.model.instance.EntityMutationResponse;
 import org.apache.atlas.model.instance.EntityMutations.EntityOperation;
 import org.apache.atlas.model.instance.GuidMapping;
 import org.apache.atlas.model.legacy.EntityResult;
+import org.apache.atlas.repository.graphdb.AtlasGraph;
 import org.apache.atlas.repository.store.graph.v2.EntityGraphRetriever;
 import org.apache.atlas.v1.model.instance.Referenceable;
 import org.apache.atlas.v1.model.instance.Struct;
@@ -65,12 +66,14 @@ public class AtlasInstanceConverter {
     private final AtlasTypeRegistry     typeRegistry;
     private final AtlasFormatConverters instanceFormatters;
     private final EntityGraphRetriever  entityGraphRetriever;
+    private final EntityGraphRetriever  entityGraphRetrieverIgnoreRelationshipAttrs;
 
     @Inject
-    public AtlasInstanceConverter(AtlasTypeRegistry typeRegistry, AtlasFormatConverters instanceFormatters) {
-        this.typeRegistry         = typeRegistry;
-        this.instanceFormatters   = instanceFormatters;
-        this.entityGraphRetriever = new EntityGraphRetriever(typeRegistry);
+    public AtlasInstanceConverter(AtlasGraph graph, AtlasTypeRegistry typeRegistry, AtlasFormatConverters instanceFormatters) {
+        this.typeRegistry                                = typeRegistry;
+        this.instanceFormatters                          = instanceFormatters;
+        this.entityGraphRetriever                        = new EntityGraphRetriever(graph, typeRegistry);
+        this.entityGraphRetrieverIgnoreRelationshipAttrs = new EntityGraphRetriever(graph, typeRegistry, true);
     }
 
     public Referenceable[] getReferenceables(Collection<AtlasEntity> entities) throws AtlasBaseException {
@@ -293,11 +296,19 @@ public class AtlasInstanceConverter {
     }
 
     public AtlasEntity getAndCacheEntity(String guid) throws AtlasBaseException {
+        return getAndCacheEntity(guid, false);
+    }
+
+    public AtlasEntity getAndCacheEntity(String guid, boolean ignoreRelationshipAttributes) throws AtlasBaseException {
         RequestContext context = RequestContext.get();
         AtlasEntity    entity  = context.getEntity(guid);
 
         if (entity == null) {
-            entity = entityGraphRetriever.toAtlasEntity(guid);
+            if (ignoreRelationshipAttributes) {
+                entity = entityGraphRetrieverIgnoreRelationshipAttrs.toAtlasEntity(guid);
+            } else {
+                entity = entityGraphRetriever.toAtlasEntity(guid);
+            }
 
             if (entity != null) {
                 context.cache(entity);

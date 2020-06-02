@@ -35,7 +35,7 @@ import org.apache.atlas.repository.graphdb.AtlasVertexQuery;
 import org.apache.atlas.repository.store.graph.v2.AtlasGraphUtilsV2;
 import org.apache.atlas.type.AtlasArrayType;
 import org.apache.atlas.type.AtlasMapType;
-import org.apache.atlas.util.AtlasGremlinQueryProvider;
+import org.apache.atlas.utils.AtlasPerfMetrics;
 import org.apache.atlas.v1.model.instance.Id;
 import org.apache.atlas.v1.model.instance.Referenceable;
 import org.apache.atlas.type.AtlasStructType.AtlasAttribute;
@@ -71,7 +71,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 
 import static org.apache.atlas.model.instance.AtlasEntity.Status.ACTIVE;
 import static org.apache.atlas.model.instance.AtlasEntity.Status.DELETED;
@@ -94,18 +93,13 @@ public final class GraphHelper {
     public static final String RETRY_DELAY = "atlas.graph.storage.retry.sleeptime.ms";
     public static final String DEFAULT_REMOVE_PROPAGATIONS_ON_ENTITY_DELETE = "atlas.graph.remove.propagations.default";
 
-    private final AtlasGremlinQueryProvider queryProvider = AtlasGremlinQueryProvider.INSTANCE;
-
-    private static volatile GraphHelper INSTANCE;
-
     private AtlasGraph graph;
 
-    private static int     maxRetries;
-    private static long    retrySleepTimeMillis;
-    private static boolean removePropagations;
+    private int     maxRetries = 3;
+    private long    retrySleepTimeMillis = 1000;
+    private boolean removePropagations = false;
 
-    @VisibleForTesting
-    GraphHelper(AtlasGraph graph) {
+    public GraphHelper(AtlasGraph graph) {
         this.graph = graph;
         try {
             maxRetries           = ApplicationProperties.get().getInt(RETRY_COUNT, 3);
@@ -116,67 +110,8 @@ public final class GraphHelper {
         }
     }
 
-    public static GraphHelper getInstance() {
-        if ( INSTANCE == null) {
-            synchronized (GraphHelper.class) {
-                if (INSTANCE == null) {
-                    INSTANCE = new GraphHelper(AtlasGraphProvider.getGraphInstance());
-                }
-            }
-        }
-        return INSTANCE;
-    }
-
-    @VisibleForTesting
-    static GraphHelper getInstance(AtlasGraph graph) {
-        if ( INSTANCE == null) {
-            synchronized (GraphHelper.class) {
-                if (INSTANCE == null) {
-                    INSTANCE = new GraphHelper(graph);
-                }
-            }
-        }
-        return INSTANCE;
-    }
-
     public static boolean isTermEntityEdge(AtlasEdge edge) {
         return StringUtils.equals(edge.getLabel(), TERM_ASSIGNMENT_LABEL);
-    }
-
-    public AtlasVertex createVertexWithIdentity(Referenceable typedInstance, Set<String> superTypeNames) {
-        final String guid = UUID.randomUUID().toString();
-
-        final AtlasVertex vertexWithIdentity = createVertexWithoutIdentity(typedInstance.getTypeName(),
-                new Id(guid, 0, typedInstance.getTypeName()), superTypeNames);
-
-        // add identity
-        AtlasGraphUtilsV2.setEncodedProperty(vertexWithIdentity, Constants.GUID_PROPERTY_KEY, guid);
-
-        // add version information
-        AtlasGraphUtilsV2.setEncodedProperty(vertexWithIdentity, Constants.VERSION_PROPERTY_KEY, Long.valueOf(typedInstance.getId().getVersion()));
-
-        return vertexWithIdentity;
-    }
-
-    public AtlasVertex createVertexWithoutIdentity(String typeName, Id typedInstanceId, Set<String> superTypeNames) {
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("Creating AtlasVertex for type {} id {}", typeName, typedInstanceId != null ? typedInstanceId._getId() : null);
-        }
-
-        final AtlasVertex ret = graph.addVertex();
-
-        AtlasGraphUtilsV2.setEncodedProperty(ret, ENTITY_TYPE_PROPERTY_KEY, typeName);
-        AtlasGraphUtilsV2.setEncodedProperty(ret, STATE_PROPERTY_KEY, ACTIVE.name());
-        AtlasGraphUtilsV2.setEncodedProperty(ret, TIMESTAMP_PROPERTY_KEY, RequestContext.get().getRequestTime());
-        AtlasGraphUtilsV2.setEncodedProperty(ret, MODIFICATION_TIMESTAMP_PROPERTY_KEY, RequestContext.get().getRequestTime());
-        AtlasGraphUtilsV2.setEncodedProperty(ret, CREATED_BY_KEY, RequestContext.get().getUser());
-        AtlasGraphUtilsV2.setEncodedProperty(ret, MODIFIED_BY_KEY, RequestContext.get().getUser());
-
-        for (String superTypeName : superTypeNames) {
-            AtlasGraphUtilsV2.addEncodedProperty(ret, SUPER_TYPES_PROPERTY_KEY, superTypeName);
-        }
-
-        return ret;
     }
 
     public AtlasEdge addClassificationEdge(AtlasVertex entityVertex, AtlasVertex classificationVertex, boolean isPropagated) {
@@ -215,21 +150,18 @@ public final class GraphHelper {
     }
 
     public AtlasEdge getOrCreateEdge(AtlasVertex outVertex, AtlasVertex inVertex, String edgeLabel) throws RepositoryException {
+        AtlasPerfMetrics.MetricRecorder metric = RequestContext.get().startMetricRecord("getOrCreateEdge");
+
         for (int numRetries = 0; numRetries < maxRetries; numRetries++) {
             try {
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("Running edge creation attempt {}", numRetries);
                 }
 
-                Iterator<AtlasEdge> edges = getAdjacentEdgesByLabel(inVertex, AtlasEdgeDirection.IN, edgeLabel);
-
-                while (edges.hasNext()) {
-                    AtlasEdge edge = edges.next();
-                    if (edge.getOutVertex().equals(outVertex)) {
-                        Id.EntityState edgeState = getState(edge);
-                        if (edgeState == null || edgeState == Id.EntityState.ACTIVE) {
-                            return edge;
-                        }
+                if (inVertex.hasEdges(AtlasEdgeDirection.IN, edgeLabel) && outVertex.hasEdges(AtlasEdgeDirection.OUT, edgeLabel)) {
+                    AtlasEdge edge = graph.getEdgeBetweenVertices(outVertex, inVertex, edgeLabel);
+                    if (edge != null) {
+                        return edge;
                     }
                 }
 
@@ -251,6 +183,8 @@ public final class GraphHelper {
                 }
             }
         }
+
+        RequestContext.get().endMetricRecord(metric);
         return null;
     }
 
@@ -318,43 +252,33 @@ public final class GraphHelper {
     //In some cases of parallel APIs, the edge is added, but get edge by label doesn't return the edge. ATLAS-1104
     //So traversing all the edges
     public static Iterator<AtlasEdge> getAdjacentEdgesByLabel(AtlasVertex instanceVertex, AtlasEdgeDirection direction, final String edgeLabel) {
+        AtlasPerfMetrics.MetricRecorder metric = RequestContext.get().startMetricRecord("getAdjacentEdgesByLabel");
         if (LOG.isDebugEnabled()) {
             LOG.debug("Finding edges for {} with label {}", string(instanceVertex), edgeLabel);
         }
 
+        Iterator<AtlasEdge> ret = null;
         if(instanceVertex != null && edgeLabel != null) {
-            final Iterator<AtlasEdge> iterator = instanceVertex.getEdges(direction).iterator();
-            return new Iterator<AtlasEdge>() {
-                private AtlasEdge edge = null;
-
-                @Override
-                public boolean hasNext() {
-                    while (edge == null && iterator.hasNext()) {
-                        AtlasEdge localEdge = iterator.next();
-                        if (localEdge.getLabel().equals(edgeLabel)) {
-                            edge = localEdge;
-                        }
-                    }
-                    return edge != null;
-                }
-
-                @Override
-                public AtlasEdge next() {
-                    if (hasNext()) {
-                        AtlasEdge localEdge = edge;
-                        edge = null;
-                        return localEdge;
-                    }
-                    return null;
-                }
-
-                @Override
-                public void remove() {
-                    throw new IllegalStateException("Not handled");
-                }
-            };
+            ret = instanceVertex.getEdges(direction, edgeLabel).iterator();
         }
-        return null;
+
+        RequestContext.get().endMetricRecord(metric);
+        return ret;
+    }
+
+    public static long getAdjacentEdgesCountByLabel(AtlasVertex instanceVertex, AtlasEdgeDirection direction, final String edgeLabel) {
+        AtlasPerfMetrics.MetricRecorder metric = RequestContext.get().startMetricRecord("getAdjacentEdgesCountByLabel");
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Finding edges for {} with label {}", string(instanceVertex), edgeLabel);
+        }
+
+        long ret = 0;
+        if(instanceVertex != null && edgeLabel != null) {
+            ret = instanceVertex.getEdgesCount(direction, edgeLabel);
+        }
+
+        RequestContext.get().endMetricRecord(metric);
+        return ret;
     }
 
     public static boolean isPropagationEnabled(AtlasVertex classificationVertex) {
@@ -523,6 +447,14 @@ public final class GraphHelper {
 
     public static Iterator<AtlasEdge> getOutGoingEdgesByLabel(AtlasVertex instanceVertex, String edgeLabel) {
         return getAdjacentEdgesByLabel(instanceVertex, AtlasEdgeDirection.OUT, edgeLabel);
+    }
+
+    public static long getOutGoingEdgesCountByLabel(AtlasVertex instanceVertex, String edgeLabel) {
+        return getAdjacentEdgesCountByLabel(instanceVertex, AtlasEdgeDirection.OUT, edgeLabel);
+    }
+
+    public static long getInComingEdgesCountByLabel(AtlasVertex instanceVertex, String edgeLabel) {
+        return getAdjacentEdgesCountByLabel(instanceVertex, AtlasEdgeDirection.IN, edgeLabel);
     }
 
     public AtlasEdge getEdgeForLabel(AtlasVertex vertex, String edgeLabel, AtlasRelationshipEdgeDirection edgeDirection) {
@@ -806,19 +738,21 @@ public final class GraphHelper {
 
     public static List<AtlasVertex> getPropagationEnabledClassificationVertices(AtlasVertex entityVertex) {
         List<AtlasVertex> ret   = new ArrayList<>();
-        Iterable          edges = entityVertex.query().direction(AtlasEdgeDirection.OUT).label(CLASSIFICATION_LABEL).edges();
+        if (entityVertex.hasEdges(AtlasEdgeDirection.OUT, CLASSIFICATION_LABEL)) {
+            Iterable edges = entityVertex.query().direction(AtlasEdgeDirection.OUT).label(CLASSIFICATION_LABEL).edges();
 
-        if (edges != null) {
-            Iterator<AtlasEdge> iterator = edges.iterator();
+            if (edges != null) {
+                Iterator<AtlasEdge> iterator = edges.iterator();
 
-            while (iterator.hasNext()) {
-                AtlasEdge edge = iterator.next();
+                while (iterator.hasNext()) {
+                    AtlasEdge edge = iterator.next();
 
-                if (edge != null) {
-                    AtlasVertex classificationVertex = edge.getInVertex();
+                    if (edge != null) {
+                        AtlasVertex classificationVertex = edge.getInVertex();
 
-                    if (isPropagationEnabled(classificationVertex)) {
-                        ret.add(classificationVertex);
+                        if (isPropagationEnabled(classificationVertex)) {
+                            ret.add(classificationVertex);
+                        }
                     }
                 }
             }
@@ -1217,6 +1151,14 @@ public final class GraphHelper {
         return ret;
     }
 
+    public AtlasGraph getGraph() {
+        return this.graph;
+    }
+
+    public Boolean getDefaultRemovePropagations() {
+        return this.removePropagations;
+    }
+
     /**
      * Guid and AtlasVertex combo
      */
@@ -1449,7 +1391,9 @@ public final class GraphHelper {
 
     private static void sortCollectionElements(AtlasAttribute attribute, List<AtlasEdge> edges) {
         // sort array elements based on edge index
-        if (attribute.getAttributeType() instanceof AtlasArrayType && CollectionUtils.isNotEmpty(edges)) {
+        if (attribute.getAttributeType() instanceof AtlasArrayType &&
+                CollectionUtils.isNotEmpty(edges) &&
+                edges.get(0).getProperty(ATTRIBUTE_INDEX_PROPERTY_KEY, Integer.class) != null) {
             Collections.sort(edges, (e1, e2) -> {
                 Integer e1Index = getIndexValue(e1);
                 Integer e2Index = getIndexValue(e2);
@@ -1683,10 +1627,6 @@ public final class GraphHelper {
 
     private static boolean verticesEquals(AtlasVertex vertexA, AtlasVertex vertexB) {
         return StringUtils.equals(getGuid(vertexB), getGuid(vertexA));
-    }
-
-    public static boolean getDefaultRemovePropagations() {
-        return removePropagations;
     }
 
     public static String getDelimitedClassificationNames(Collection<String> classificationNames) {

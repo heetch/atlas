@@ -29,32 +29,27 @@ define(['require',
     var Header = Marionette.LayoutView.extend({
         template: tmpl,
         regions: {},
+        templateHelpers: function() {
+            return {
+                glossaryImportTempUrl: UrlLinks.glossaryImportTempUrl(),
+                businessMetadataImportTempUrl: UrlLinks.businessMetadataImportTempUrl()
+            };
+        },
         ui: {
             backButton: "[data-id='backButton']",
             menuHamburger: "[data-id='menuHamburger']",
             globalSearch: "[data-id='globalSearch']",
             clearGlobalSearch: "[data-id='clearGlobalSearch']",
-            signOut: "[data-id='signOut']"
+            signOut: "[data-id='signOut']",
+            administrator: "[data-id='administrator']",
+            uiSwitch: "[data-id='uiSwitch']",
+            glossaryImport: "[data-id='glossaryImport']",
+            businessMetadataImport: "[data-id='businessMetadataImport']"
         },
         events: function() {
             var events = {};
             events['click ' + this.ui.backButton] = function() {
-                var queryParams = Utils.getUrlState.getQueryParams(),
-                    urlPath = "searchUrl";
-                if (queryParams && queryParams.from) {
-                    if (queryParams.from == "classification") {
-                        urlPath = "tagUrl";
-                    } else if (queryParams.from == "glossary") {
-                        urlPath = "glossaryUrl";
-                    }
-                }
-                Utils.setUrl({
-                    url: Globals.saveApplicationState.tabState[urlPath],
-                    mergeBrowserUrl: false,
-                    trigger: true,
-                    updateTabState: true
-                });
-
+                Utils.backButtonClick();
             };
             events['click ' + this.ui.clearGlobalSearch] = function() {
                 this.ui.globalSearch.val("");
@@ -70,20 +65,41 @@ define(['require',
                 $('body').toggleClass("full-screen");
             };
             events['click ' + this.ui.signOut] = function() {
-
-                Utils.localStorage.setValue("atlas_ui", "classic");
+                Utils.localStorage.setValue("last_ui_load", "v1");
                 var path = Utils.getBaseUrl(window.location.pathname);
                 window.location = path + "/logout.html";
             };
-            return events;
+            events["click " + this.ui.uiSwitch] = function() {
+                var path = Utils.getBaseUrl(window.location.pathname) + "/n/index.html";
+                if (window.location.hash.length > 2) {
+                    path += window.location.hash;
+                }
+                window.location.href = path;
+            };
+            events['click ' + this.ui.administrator] = function() {
+                Utils.setUrl({
+                    url: "#!/administrator",
+                    mergeBrowserUrl: false,
+                    trigger: true,
+                    updateTabState: true
+                });
+            };
+            events['click ' + this.ui.glossaryImport] = function() {
+                this.onClickImport(true);
+            };
+            events['click ' + this.ui.businessMetadataImport] = function() {
+                this.onClickImport()
+            };
 
+            return events;
         },
         initialize: function(options) {
             this.bindEvent();
+            this.options = options;
         },
         setSearchBoxWidth: function(options) {
             var atlasHeaderWidth = this.$el.find(".atlas-header").width(),
-                minusWidth = Utils.getUrlState.isDetailPage() ? 413 : 263;
+                minusWidth = (Utils.getUrlState.isDetailPage() || Utils.getUrlState.isBSDetail()) ? 360 : 210;
             if (options && options.updateWidth) {
                 atlasHeaderWidth = options.updateWidth(atlasHeaderWidth);
             }
@@ -117,12 +133,14 @@ define(['require',
             var that = this,
                 request = options.request,
                 response = options.response,
+                inputEl = options.inputEl,
                 term = request.term,
                 data = {},
                 sendResponse = function() {
                     var query = data.query,
                         suggestions = data.suggestions;
                     if (query !== undefined && suggestions !== undefined) {
+                        inputEl.siblings('span.fa-refresh').removeClass("fa-refresh fa-spin-custom").addClass("fa-search");
                         response(data);
                     }
                 };
@@ -179,12 +197,6 @@ define(['require',
                 search: function() {
                     $(this).siblings('span.fa-search').removeClass("fa-search").addClass("fa-refresh fa-spin-custom");
                 },
-                focus: function(event, ui) {
-                    return false;
-                },
-                open: function() {
-                    $(this).siblings('span.fa-refresh').removeClass("fa-refresh fa-spin-custom").addClass("fa-search");
-                },
                 select: function(event, ui) {
                     var item = ui && ui.item;
                     event.preventDefault();
@@ -207,7 +219,8 @@ define(['require',
                 source: function(request, response) {
                     that.fetchSearchData({
                         request: request,
-                        response: response
+                        response: response,
+                        inputEl: this.element
                     });
                 }
             }).focus(function() {
@@ -226,7 +239,6 @@ define(['require',
                     }
                 }
             }).atlasAutoComplete("instance")._renderItem = function(ul, searchItem) {
-
                 if (searchItem) {
                     var data = searchItem.data,
                         searchTerm = this.term,
@@ -252,6 +264,17 @@ define(['require',
                                     item.itemText = Utils.getName(item) + " (" + item.typeName + ")";
                                     var options = {},
                                         table = '';
+                                    if (item.serviceType === undefined) {
+                                        if (Globals.serviceTypeMap[item.typeName] === undefined && that.entityDefCollection) {
+                                            var defObj = that.entityDefCollection.fullCollection.find({ name: item.typeName });
+                                            if (defObj) {
+                                                Globals.serviceTypeMap[item.typeName] = defObj.get("serviceType");
+                                            }
+                                        }
+                                    } else if (Globals.serviceTypeMap[item.typeName] === undefined) {
+                                        Globals.serviceTypeMap[item.typeName] = item.serviceType;
+                                    }
+                                    item.serviceType = Globals.serviceTypeMap[item.typeName];
                                     options.entityData = item;
                                     var imgEl = $('<img src="' + Utils.getEntityIconPath(options) + '">').on("error", function(error, s) {
                                         this.src = Utils.getEntityIconPath(_.extend(options, { errorUrl: this.src }));
@@ -263,7 +286,7 @@ define(['require',
                                         .append(span);
                                 } else {
                                     li = $("<li>")
-                                        .append("<span>" + (getHighlightedTerm(item)) + "</span>");
+                                        .append("<span>" + (getHighlightedTerm(_.escape(item))) + "</span>");
                                 }
                                 li.data("ui-autocomplete-item", item);
                                 if (searchItem.category) {
@@ -275,6 +298,25 @@ define(['require',
                     }
                 }
             };
+        },
+        onClickImport: function(isGlossary) {
+            var that = this;
+            require([
+                'views/import/ImportLayoutView'
+            ], function(ImportLayoutView) {
+                var view = new ImportLayoutView({
+                    callback: function() {
+                        if (that.options.importVent) {
+                            if (isGlossary) {
+                                that.options.importVent.trigger("Import:Glossary:Update");
+                            } else {
+                                that.options.importVent.trigger("Import:BM:Update");
+                            }
+                        }
+                    },
+                    isGlossary: isGlossary
+                });
+            });
         }
     });
     return Header;

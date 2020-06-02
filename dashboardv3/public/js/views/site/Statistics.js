@@ -83,23 +83,24 @@ define(['require',
                             that.fetchMetricData({ update: true });
                         }
                     }]
-                }).open();
-
+                });
                 modal.on('closeModal', function() {
                     modal.trigger('cancel');
                 });
                 this.modal = modal;
+                modal.open();
             },
             bindEvents: function() {
                 var that = this;
-                this.$el.on('click', '.linkClicked', function() {
-                    that.modal.close();
-                })
+                if (this.modal) {
+                    this.$el.on('click', '.linkClicked', function() {
+                        that.modal.close();
+                    })
+                }
             },
             fetchMetricData: function(options) {
                 var that = this;
                 this.metricCollection.fetch({
-                    skipDefaultError: true,
                     success: function(data) {
                         var data = _.first(data.toJSON());
                         that.renderStats({ valueObject: data.general.stats, dataObject: data.general });
@@ -383,7 +384,8 @@ define(['require',
                     var memoryTable = CommonViewFunction.propertyTable({
                         scope: this,
                         formatStringVal: true,
-                        valueObject: systemMemoryData
+                        valueObject: systemMemoryData,
+                        numberFormat: _.numberFormatWithBytes
                     });
                     that.ui.memoryCard.html(
                         memoryTable);

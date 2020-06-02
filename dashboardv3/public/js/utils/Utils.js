@@ -190,7 +190,7 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
                 confirm: true,
                 buttons: [{
                         text: options.cancelText || 'Cancel',
-                        addClass: 'btn-action btn-md',
+                        addClass: 'btn-action btn-md cancel',
                         click: function(notice) {
                             options.cancel(notice);
                             notice.remove();
@@ -198,10 +198,24 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
                     },
                     {
                         text: options.okText || 'Ok',
-                        addClass: 'btn-atlas btn-md',
+                        addClass: 'btn-atlas btn-md ok',
                         click: function(notice) {
-                            options.ok(notice);
-                            notice.remove();
+                            if (options.ok) {
+                                options.ok($.extend({}, notice, {
+                                    hideButtonLoader: function() {
+                                        notice.container.find("button.ok").hideButtonLoader();
+                                    },
+                                    showButtonLoader: function() {
+                                        notice.container.find("button.ok").showButtonLoader();
+                                    }
+                                }));
+                            }
+                            if (options.okShowLoader) {
+                                notice.container.find("button.ok").showButtonLoader();
+                            }
+                            if (options.okCloses !== false) {
+                                notice.remove();
+                            }
                         }
                     }
                 ]
@@ -224,22 +238,26 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
             }
         });
     }
-    Utils.defaultErrorHandler = function(model, error) {
+    Utils.defaultErrorHandler = function(model, error, options) {
+        var skipDefaultError = null,
+            defaultErrorMessage = null,
+            isHtml = null;
+        if (options) {
+            skipDefaultError = options.skipDefaultError;
+            defaultErrorMessage = options.defaultErrorMessage;
+            isHtml = options.isHtml;
+        }
+        var redirectToLoginPage = function() {
+            Utils.localStorage.setValue("last_ui_load", "v2");
+            window.location = 'login.jsp';
+        }
         if (error && error.status) {
             if (error.status == 401) {
-                window.location = 'login.jsp'
+                redirectToLoginPage();
             } else if (error.status == 419) {
-                window.location = 'login.jsp'
+                redirectToLoginPage();
             } else if (error.status == 403) {
-                var message = "You are not authorized";
-                if (error.statusText) {
-                    try {
-                        message = JSON.parse(error.statusText).AuthorizationError;
-                    } catch (err) {}
-                    Utils.notifyError({
-                        content: message
-                    });
-                }
+                Utils.serverErrorHandler(error, "You are not authorized");
             } else if (error.status == "0" && error.statusText != "abort") {
                 var diffTime = (new Date().getTime() - prevNetworkErrorTime);
                 if (diffTime > 3000) {
@@ -249,22 +267,24 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
                             "It seems you are not connected to the internet. Please check your internet connection and try again"
                     });
                 }
-            } else {
-                Utils.serverErrorHandler(model, error)
+            } else if (skipDefaultError !== true) {
+                Utils.serverErrorHandler(error, defaultErrorMessage, isHtml);
             }
-        } else {
-            Utils.serverErrorHandler(model, error)
+        } else if (skipDefaultError !== true) {
+            Utils.serverErrorHandler(error, defaultErrorMessage);
         }
     };
-    Utils.serverErrorHandler = function(model, response) {
-        var responseJSON = response ? response.responseJSON : response;
-        if (response && responseJSON && (responseJSON.errorMessage || responseJSON.message || responseJSON.error)) {
+    Utils.serverErrorHandler = function(response, defaultErrorMessage, isHtml) {
+        var responseJSON = response ? response.responseJSON : response,
+            message = defaultErrorMessage ? defaultErrorMessage : Messages.defaultErrorMessage
+        if (response && responseJSON) {
+            message = responseJSON.errorMessage || responseJSON.message || responseJSON.error || message
+        }
+        var existingError = $(".ui-pnotify-container.alert-danger .ui-pnotify-text").text();
+        if (existingError !== message) {
             Utils.notifyError({
-                content: responseJSON.errorMessage || responseJSON.message || responseJSON.error
-            });
-        } else {
-            Utils.notifyError({
-                content: Messages.defaultErrorMessage
+                html:isHtml,
+                content: message
             });
         }
     };
@@ -341,6 +361,8 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
                     urlUpdate['searchUrl'] = options.url;
                 } else if (Utils.getUrlState.isGlossaryTab(options.url)) {
                     urlUpdate['glossaryUrl'] = options.url;
+                } else if (Utils.getUrlState.isAdministratorTab(options.url)) {
+                    urlUpdate['administratorUrl'] = options.url;
                 }
                 $.extend(Globals.saveApplicationState.tabState, urlUpdate);
             }
@@ -382,10 +404,10 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
                 matchString: "search"
             });
         },
-        isCustomFilterTab: function(url) {
+        isAdministratorTab: function(url) {
             return this.checkTabUrl({
                 url: url,
-                matchString: "search/customFilter"
+                matchString: "administrator"
             });
         },
         isGlossaryTab: function(url) {
@@ -556,6 +578,8 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
                 urlPath = "tagUrl";
             } else if (queryParams.from == "glossary") {
                 urlPath = "glossaryUrl";
+            } else if (queryParams.from == "bm") {
+                urlPath = "administratorUrl";
             }
         }
         Utils.setUrl({
@@ -644,17 +668,18 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
             superTypes = [];
 
         var getData = function(data, collection) {
-            superTypes = superTypes.concat(data.superTypes);
-
-            if (data.superTypes && data.superTypes.length) {
-                _.each(data.superTypes, function(superTypeName) {
-                    if (collection.fullCollection) {
-                        var collectionData = collection.fullCollection.findWhere({ name: superTypeName }).toJSON();
-                    } else {
-                        var collectionData = collection.findWhere({ name: superTypeName }).toJSON();
-                    }
-                    return getData(collectionData, collection);
-                });
+            if (data) {
+                superTypes = superTypes.concat(data.superTypes);
+                if (data.superTypes && data.superTypes.length) {
+                    _.each(data.superTypes, function(superTypeName) {
+                        if (collection.fullCollection) {
+                            var collectionData = collection.fullCollection.findWhere({ name: superTypeName }).toJSON();
+                        } else {
+                            var collectionData = collection.findWhere({ name: superTypeName }).toJSON();
+                        }
+                        getData(collectionData, collection);
+                    });
+                }
             }
         }
         getData(data, collection);
@@ -898,7 +923,14 @@ define(['require', 'utils/Globals', 'pnotify', 'utils/Messages', 'utils/Enums', 
         } else {
             tableEl.addClass('hide-empty-value');
         }
-
+    }
+    $.fn.showButtonLoader = function() {
+        $(this).attr("disabled", "true").addClass('button-loader');
+        $(this).siblings("button.cancel").prop("disabled", true);
+    }
+    $.fn.hideButtonLoader = function() {
+        $(this).removeClass('button-loader').removeAttr("disabled");
+        $(this).siblings("button.cancel").prop("disabled", false);
     }
     return Utils;
 });

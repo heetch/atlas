@@ -36,7 +36,8 @@ define([
             RGlossaryTreeRender: '[data-id="r_glossaryTreeRender"]',
             RClassificationTreeRender: '[data-id="r_classificationTreeRender"]',
             REntityTreeRender: '[data-id="r_entityTreeRender"]',
-            RCustomFilterTreeRender: '[data-id="r_customFilterTreeRender"]'
+            RCustomFilterTreeRender: '[data-id="r_customFilterTreeRender"]',
+            RBusinessMetadataTreeRender: '[data-id="r_businessMetadataTreeRender"]'
         },
         ui: {
             //search
@@ -81,6 +82,7 @@ define([
                 this.classificationSearchTree = this.$('[data-id="classificationSearchTree"]');
                 this.termSearchTree = this.$('[data-id="termSearchTree"]');
                 this.customFilterSearchTree = this.$('[data-id="customFilterSearchTree"]');
+                this.businessMetadataSearchTree = this.$('[data-id="businessMetadataSearchTree"]');
                 this.entitySearchTree.jstree(true).show_all();
                 this.entitySearchTree.jstree("search", searchString);
                 this.classificationSearchTree.jstree(true).show_all();
@@ -89,6 +91,9 @@ define([
                 this.termSearchTree.jstree("search", searchString);
                 this.customFilterSearchTree.jstree(true).show_all();
                 this.customFilterSearchTree.jstree("search", searchString);
+                this.businessMetadataSearchTree.jstree(true).show_all();
+                this.businessMetadataSearchTree.jstree("search", searchString);
+
             };
 
             events["click " + this.ui.menuItems] = function(e) {
@@ -118,16 +123,17 @@ define([
             this.bindEvents();
         },
         onRender: function() {
-            var opt = opt = Utils.getUrlState.getQueryParams();
+            var opt = Utils.getUrlState.getQueryParams();
             this.renderEntityTree(opt);
             this.renderClassificationTree(opt);
             this.renderGlossaryTree(opt);
             this.renderCustomFilterTree();
+            this.renderBusinessMetadataTree();
             this.showHideGlobalFilter();
             this.showDefaultPage();
         },
         showDefaultPage: function() {
-            if (this.options.value) {
+            if (Utils.getUrlState.isSearchTab() && this.options.value) {
                 if (
                     !this.options.value.type &&
                     !this.options.value.tag &&
@@ -195,6 +201,12 @@ define([
             if (options) {
                 _.extend(this.options, options);
                 this.showHideGlobalFilter();
+                if(!this.options.value){
+                    this.ui.searchNode.val('').trigger('keyup');
+                }
+                if (this.RBusinessMetadataTreeRender.currentView) {
+                    this.RBusinessMetadataTreeRender.currentView.manualRender(this.options);
+                }
                 if (this.RCustomFilterTreeRender.currentView) {
                     this.RCustomFilterTreeRender.currentView.manualRender(this.options);
                 }
@@ -231,6 +243,12 @@ define([
             var that = this;
             require(["views/search/tree/CustomFilterTreeLayoutView"], function(CustomFilterTreeLayoutView) {
                 that.RCustomFilterTreeRender.show(new CustomFilterTreeLayoutView(_.extend({ query: that.query }, that.options)));
+            });
+        },
+        renderBusinessMetadataTree: function() {
+            var that = this;
+            require(["views/search/tree/BusinessMetadataTreeLayoutView"], function(BusinessMetadataTreeLayoutView) {
+                that.RBusinessMetadataTreeRender.show(new BusinessMetadataTreeLayoutView(_.extend({ query: that.query }, that.options)));
             });
         }
     });

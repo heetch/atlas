@@ -49,6 +49,8 @@ import java.util.stream.Stream;
 
 import static org.apache.atlas.model.discovery.SearchParameters.ALL_CLASSIFICATIONS;
 import static org.apache.atlas.model.discovery.SearchParameters.NO_CLASSIFICATIONS;
+import static org.apache.atlas.type.AtlasStructType.AtlasAttribute.AtlasRelationshipEdgeDirection.IN;
+import static org.apache.atlas.type.AtlasStructType.AtlasAttribute.AtlasRelationshipEdgeDirection.OUT;
 
 public class GremlinQueryComposer {
     private static final Logger LOG                 = LoggerFactory.getLogger(GremlinQueryComposer.class);
@@ -119,9 +121,9 @@ public class GremlinQueryComposer {
             if (ia.isTrait()) {
                 String traitName = ia.get();
 
-                if (traitName.equalsIgnoreCase(ALL_CLASSIFICATIONS)) {
+                if (traitName.equals(ALL_CLASSIFICATIONS)) {
                     addTrait(GremlinClause.ANY_TRAIT, ia);
-                } else if (traitName.equalsIgnoreCase(NO_CLASSIFICATIONS)) {
+                } else if (traitName.equals(NO_CLASSIFICATIONS)) {
                     addTrait(GremlinClause.NO_TRAIT, ia);
                 } else {
                     addTrait(GremlinClause.TRAIT, ia);
@@ -214,7 +216,12 @@ public class GremlinQueryComposer {
 
         if (org != null && org.isReferredType()) {
             add(GremlinClause.DEDUP);
-            add(GremlinClause.IN, org.getEdgeLabel());
+            if (org.getEdgeDirection() != null) {
+                GremlinClause gremlinClauseForEdgeLabel = org.getEdgeDirection().equals(IN) ? GremlinClause.OUT : GremlinClause.IN;
+                add(gremlinClauseForEdgeLabel, org.getEdgeLabel());
+            } else {
+                add(GremlinClause.OUT, org.getEdgeLabel());
+            }
             context.registerActive(currentType);
         }
     }
@@ -575,7 +582,12 @@ public class GremlinQueryComposer {
 
     private boolean introduceType(IdentifierHelper.Info ia) {
         if (ia.isReferredType()) {
-            add(GremlinClause.OUT, ia.getEdgeLabel());
+            if (ia.getEdgeDirection() != null) {
+                GremlinClause gremlinClauseForEdgeLabel = ia.getEdgeDirection().equals(OUT) ? GremlinClause.OUT : GremlinClause.IN;
+                add(gremlinClauseForEdgeLabel, ia.getEdgeLabel());
+            } else {
+                add(GremlinClause.OUT, ia.getEdgeLabel());
+            }
             context.registerActive(ia);
         }
 

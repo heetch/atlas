@@ -37,6 +37,9 @@ define(['require', 'utils/Enums', 'utils/Utils', 'underscore'], function(require
         classificationDefApiUrl: function(name) {
             return this.getDefApiUrl('classification', name);
         },
+        businessMetadataDefApiUrl: function(name) {
+            return this.getDefApiUrl('business_metadata', name);
+        },
         enumDefApiUrl: function(name) {
             return this.getDefApiUrl('enum', name);
         },
@@ -99,6 +102,11 @@ define(['require', 'utils/Enums', 'utils/Utils', 'underscore'], function(require
                 return this.baseUrlV2 + '/entity/bulk/classification';
             }
         },
+        entitiesBusinessMetadataApiUrl: function(guid) {
+            if (guid) {
+                return this.baseUrlV2 + '/entity/guid/' + guid + '/businessmetadata?isOverwrite=true';
+            }
+        },
         entityCollectionaudit: function(guid) {
             return this.baseUrlV2 + '/entity/' + guid + '/audit';
         },
@@ -124,14 +132,6 @@ define(['require', 'utils/Enums', 'utils/Utils', 'underscore'], function(require
                 url = url + "?" + queryParam.join("&");
             }
             return url;
-        },
-        classicationApiUrl: function(name, guid) {
-            var typeUrl = this.typedefsUrl();
-            if (name) {
-                return typeUrl.def + '/name/' + name + '?type=classification';
-            } else if (guid) {
-                return typeUrl.def + '/guid/' + guid + '?type=classification';
-            }
         },
         typesApiUrl: function() {
             return this.typedefsUrl().defs + '/headers?excludeInternalTypesAndReferences=true'
@@ -185,6 +185,18 @@ define(['require', 'utils/Enums', 'utils/Utils', 'underscore'], function(require
                 return glossaryUrl;
             }
         },
+        glossaryImportTempUrl: function() {
+            return this.glossaryApiUrl() + '/import/template';
+        },
+        glossaryImportUrl: function() {
+            return this.glossaryApiUrl() + '/import';
+        },
+        businessMetadataImportTempUrl: function() {
+            return this.entitiesApiUrl() + '/businessmetadata/import/template';
+        },
+        businessMetadataImportUrl: function() {
+            return this.entitiesApiUrl() + '/businessmetadata/import';
+        },
         categoryApiUrl: function(options) {
             var guid = options && options.guid,
                 list = options && options.list,
@@ -226,8 +238,10 @@ define(['require', 'utils/Enums', 'utils/Utils', 'underscore'], function(require
         },
         sessionApiUrl: function() {
             return this.baseUrl + '/admin/session';
+        },
+        adminApiUrl: function() {
+            return this.baseUrl + '/admin/audits';
         }
-
     });
 
     return UrlLinks;

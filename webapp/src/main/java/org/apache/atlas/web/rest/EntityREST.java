@@ -17,11 +17,15 @@
  */
 package org.apache.atlas.web.rest;
 
+import com.sun.jersey.core.header.FormDataContentDisposition;
+import com.sun.jersey.multipart.FormDataParam;
 import org.apache.atlas.AtlasErrorCode;
 import org.apache.atlas.EntityAuditEvent;
+import org.apache.atlas.bulkimport.BulkImportResponse;
 import org.apache.atlas.exception.AtlasBaseException;
 import org.apache.atlas.model.TypeCategory;
 import org.apache.atlas.model.audit.EntityAuditEventV2;
+import org.apache.atlas.model.audit.EntityAuditEventV2.EntityAuditActionV2;
 import org.apache.atlas.model.instance.AtlasClassification;
 import org.apache.atlas.model.instance.AtlasEntity.AtlasEntitiesWithExtInfo;
 import org.apache.atlas.model.instance.AtlasEntity.AtlasEntityWithExtInfo;
@@ -31,14 +35,15 @@ import org.apache.atlas.model.instance.ClassificationAssociateRequest;
 import org.apache.atlas.model.instance.EntityMutationResponse;
 import org.apache.atlas.model.typedef.AtlasStructDef.AtlasAttributeDef;
 import org.apache.atlas.repository.audit.EntityAuditRepository;
-import org.apache.atlas.repository.store.graph.v2.ClassificationAssociator;
 import org.apache.atlas.repository.converters.AtlasInstanceConverter;
 import org.apache.atlas.repository.store.graph.AtlasEntityStore;
 import org.apache.atlas.repository.store.graph.v2.AtlasEntityStream;
+import org.apache.atlas.repository.store.graph.v2.ClassificationAssociator;
 import org.apache.atlas.repository.store.graph.v2.EntityStream;
 import org.apache.atlas.type.AtlasClassificationType;
 import org.apache.atlas.type.AtlasEntityType;
 import org.apache.atlas.type.AtlasTypeRegistry;
+import org.apache.atlas.util.FileUtils;
 import org.apache.atlas.utils.AtlasPerfTracer;
 import org.apache.atlas.web.util.Servlets;
 import org.apache.commons.collections.CollectionUtils;
@@ -61,9 +66,16 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.StreamingOutput;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -785,6 +797,7 @@ public class EntityREST {
     @GET
     @Path("{guid}/audit")
     public List<EntityAuditEventV2> getAuditEvents(@PathParam("guid") String guid, @QueryParam("startKey") String startKey,
+                                                   @QueryParam("auditAction") EntityAuditActionV2 auditAction,
                                                    @QueryParam("count") @DefaultValue("100") short count) throws AtlasBaseException {
         AtlasPerfTracer perf = null;
 
@@ -793,16 +806,21 @@ public class EntityREST {
                 perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityREST.getAuditEvents(" + guid + ", " + startKey + ", " + count + ")");
             }
 
-            List                     events = auditRepository.listEvents(guid, startKey, count);
-            List<EntityAuditEventV2> ret    = new ArrayList<>();
+            List<EntityAuditEventV2> ret = new ArrayList<>();
 
-            for (Object event : events) {
-                if (event instanceof EntityAuditEventV2) {
-                    ret.add((EntityAuditEventV2) event);
-                } else if (event instanceof EntityAuditEvent) {
-                    ret.add(instanceConverter.toV2AuditEvent((EntityAuditEvent) event));
-                } else {
-                    LOG.warn("unknown entity-audit event type {}. Ignored", event != null ? event.getClass().getCanonicalName() : "null");
+            if(auditAction != null) {
+                ret = auditRepository.listEventsV2(guid, auditAction, startKey, count);
+            } else {
+                List events = auditRepository.listEvents(guid, startKey, count);
+
+                for (Object event : events) {
+                    if (event instanceof EntityAuditEventV2) {
+                        ret.add((EntityAuditEventV2) event);
+                    } else if (event instanceof EntityAuditEvent) {
+                        ret.add(instanceConverter.toV2AuditEvent((EntityAuditEvent) event));
+                    } else {
+                        LOG.warn("unknown entity-audit event type {}. Ignored", event != null ? event.getClass().getCanonicalName() : "null");
+                    }
                 }
             }
 
@@ -850,6 +868,78 @@ public class EntityREST {
 
             ClassificationAssociator.Updater associator = new ClassificationAssociator.Updater(typeRegistry, entitiesStore);
             return associator.setClassifications(entityHeaders.getGuidHeaderMap());
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+    @POST
+    @Path("/guid/{guid}/businessmetadata")
+    @Produces(Servlets.JSON_MEDIA_TYPE)
+    @Consumes(Servlets.JSON_MEDIA_TYPE)
+    public void addOrUpdateBusinessAttributes(@PathParam("guid") final String guid, @QueryParam("isOverwrite") @DefaultValue("false") boolean isOverwrite, Map<String, Map<String, Object>> businessAttributes) throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityREST.addOrUpdateBusinessAttributes(" + guid + ", isOverwrite=" + isOverwrite + ")");
+            }
+
+            entitiesStore.addOrUpdateBusinessAttributes(guid, businessAttributes, isOverwrite);
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+    @DELETE
+    @Path("/guid/{guid}/businessmetadata")
+    @Produces(Servlets.JSON_MEDIA_TYPE)
+    @Consumes(Servlets.JSON_MEDIA_TYPE)
+    public void removeBusinessAttributes(@PathParam("guid") final String guid, Map<String, Map<String, Object>> businessAttributes) throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityREST.removeBusinessAttributes(" + guid + ")");
+            }
+
+            entitiesStore.removeBusinessAttributes(guid, businessAttributes);
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+    @POST
+    @Path("/guid/{guid}/businessmetadata/{bmName}")
+    @Produces(Servlets.JSON_MEDIA_TYPE)
+    @Consumes(Servlets.JSON_MEDIA_TYPE)
+    public void addOrUpdateBusinessAttributes(@PathParam("guid") final String guid, @PathParam("bmName") final String bmName, Map<String, Object> businessAttributes) throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityREST.addOrUpdateBusinessAttributes(" + guid + ", " + bmName + ")");
+            }
+
+            entitiesStore.addOrUpdateBusinessAttributes(guid, Collections.singletonMap(bmName, businessAttributes), false);
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+    @DELETE
+    @Path("/guid/{guid}/businessmetadata/{bmName}")
+    @Produces(Servlets.JSON_MEDIA_TYPE)
+    @Consumes(Servlets.JSON_MEDIA_TYPE)
+    public void removeBusinessAttributes(@PathParam("guid") final String guid, @PathParam("bmName") final String bmName, Map<String, Object> businessAttributes) throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityREST.removeBusinessAttributes(" + guid + ", " + bmName + ")");
+            }
+
+            entitiesStore.removeBusinessAttributes(guid, Collections.singletonMap(bmName, businessAttributes));
         } finally {
             AtlasPerfTracer.log(perf);
         }
@@ -1099,5 +1189,44 @@ public class EntityREST {
                 throw new AtlasBaseException(AtlasErrorCode.ATTRIBUTE_UNIQUE_INVALID, entityType.getTypeName(), attributeName);
             }
         }
+    }
+
+    /**
+     * Get the sample Template for uploading/creating bulk BusinessMetaData
+     *
+     * @return Template File
+     * @throws AtlasBaseException
+     * @HTTP 400 If the provided fileType is not supported
+     */
+    @GET
+    @Path("/businessmetadata/import/template")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    public Response produceTemplate() {
+        return Response.ok(new StreamingOutput() {
+            @Override
+            public void write(OutputStream outputStream) throws IOException, WebApplicationException {
+                outputStream.write(FileUtils.getBusinessMetadataHeaders().getBytes());
+            }
+        }).header("Content-Disposition", "attachment; filename=\"template_business_metadata\"").build();
+    }
+
+    /**
+     * Upload the file for creating Business Metadata in BULK
+     *
+     * @param uploadedInputStream InputStream of file
+     * @param fileDetail          FormDataContentDisposition metadata of file
+     * @return
+     * @throws AtlasBaseException
+     * @HTTP 200 If Business Metadata creation was successful
+     * @HTTP 400 If Business Metadata definition has invalid or missing information
+     * @HTTP 409 If Business Metadata already exists (duplicate qualifiedName)
+     */
+    @POST
+    @Path("/businessmetadata/import")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    public BulkImportResponse importBMAttributes(@FormDataParam("file") InputStream uploadedInputStream,
+                                                 @FormDataParam("file") FormDataContentDisposition fileDetail) throws AtlasBaseException {
+
+        return entitiesStore.bulkCreateOrUpdateBusinessAttributes(uploadedInputStream, fileDetail.getFileName());
     }
 }

@@ -46,7 +46,8 @@ define(['require',
                 RProfileLayoutView: "#r_profileLayoutView",
                 RRelationshipLayoutView: "#r_relationshipLayoutView",
                 REntityUserDefineView: "#r_entityUserDefineView",
-                REntityLabelDefineView: "#r_entityLabelDefineView"
+                REntityLabelDefineView: "#r_entityLabelDefineView",
+                REntityBusinessMetadataView: "#r_entityBusinessMetadataView"
             },
             /** ui selector cache */
             ui: {
@@ -108,6 +109,7 @@ define(['require',
                     });
 
                 };
+
                 return events;
             },
             /**
@@ -115,7 +117,7 @@ define(['require',
              * @constructs
              */
             initialize: function(options) {
-                _.extend(this, _.pick(options, 'value', 'collection', 'id', 'entityDefCollection', 'typeHeaders', 'enumDefCollection', 'classificationDefCollection', 'glossaryCollection'));
+                _.extend(this, _.pick(options, 'value', 'collection', 'id', 'entityDefCollection', 'typeHeaders', 'enumDefCollection', 'classificationDefCollection', 'glossaryCollection', 'businessMetadataDefCollection', 'searchVent'));
                 $('body').addClass("detail-page");
             },
             bindEvents: function() {
@@ -170,6 +172,9 @@ define(['require',
                     if (collectionJSON) {
                         this.name = Utils.getName(collectionJSON);
                         if (collectionJSON.attributes) {
+                            if (collectionJSON.typeName) {
+                                collectionJSON.attributes.typeName = _.escape(collectionJSON.typeName);
+                            }
                             if (this.name && collectionJSON.typeName) {
                                 this.name = this.name + ' (' + _.escape(collectionJSON.typeName) + ')';
                             }
@@ -184,7 +189,14 @@ define(['require',
                                     titleName += '<button title="Deleted" class="btn btn-action btn-md deleteBtn"><i class="fa fa-trash"></i> Deleted</button>';
                                 }
                                 this.ui.title.html(titleName);
-                                var entityData = _.extend({ "serviceType": this.activeEntityDef && this.activeEntityDef.get('serviceType'), "isProcess": isProcess }, collectionJSON);
+                                if (collectionJSON.attributes.serviceType === undefined) {
+                                    if (Globals.serviceTypeMap[collectionJSON.typeName] === undefined && this.activeEntityDef) {
+                                        Globals.serviceTypeMap[collectionJSON.typeName] = this.activeEntityDef.get('serviceType');
+                                    }
+                                } else if (Globals.serviceTypeMap[collectionJSON.typeName] === undefined) {
+                                    Globals.serviceTypeMap[collectionJSON.typeName] = collectionJSON.attributes.serviceType;
+                                }
+                                var entityData = _.extend({ "serviceType": Globals.serviceTypeMap[collectionJSON.typeName], "isProcess": isProcess }, collectionJSON);
                                 if (this.readOnly) {
                                     this.ui.entityIcon.addClass('disabled');
                                 } else {
@@ -239,14 +251,22 @@ define(['require',
                         enumDefCollection: this.enumDefCollection,
                         classificationDefCollection: this.classificationDefCollection,
                         glossaryCollection: this.glossaryCollection,
+                        businessMetadataCollection: this.activeEntityDef.get('businessAttributeDefs'),
+                        searchVent: this.searchVent,
                         attributeDefs: (function() {
                             return that.getEntityDef(collectionJSON);
                         })(),
                         editEntity: this.editEntity || false
                     }
+                    obj["renderAuditTableLayoutView"] = function() {
+                        that.renderAuditTableLayoutView(obj);
+                    };
                     this.renderEntityDetailTableLayoutView(obj);
                     this.renderEntityUserDefineView(obj);
                     this.renderEntityLabelDefineView(obj);
+                    if (obj.businessMetadataCollection) {
+                        this.renderEntityBusinessMetadataView(obj);
+                    }
                     this.renderRelationshipLayoutView(obj);
                     this.renderAuditTableLayoutView(obj);
                     this.renderTagTableLayoutView(obj);
@@ -365,6 +385,9 @@ define(['require',
                     hideLoader: that.hideLoader.bind(that),
                     tagName: tagName,
                     callback: function() {
+                        if (that.searchVent) {
+                            that.searchVent.trigger("Classification:Count:Update");
+                        }
                         that.fetchCollection();
                     }
                 }));
@@ -448,6 +471,9 @@ define(['require',
                         guid: that.id,
                         tagList: tagList,
                         callback: function() {
+                            if (that.searchVent) {
+                                that.searchVent.trigger("Classification:Count:Update");
+                            }
                             that.fetchCollection();
                         },
                         showLoader: that.showLoader.bind(that),
@@ -463,9 +489,11 @@ define(['require',
             onClickAddTermBtn: function(e) {
                 var that = this,
                     entityGuid = that.id,
-                    associatedTerms = this.collection.first().get('entity').relationshipAttributes.meanings;
-
-
+                    entityObj = this.collection.first().get('entity'),
+                    associatedTerms = [];
+                if (entityObj && entityObj.relationshipAttributes && entityObj.relationshipAttributes.meanings) {
+                    associatedTerms = entityObj.relationshipAttributes.meanings;
+                }
                 require(['views/glossary/AssignTermLayoutView'], function(AssignTermLayoutView) {
                     var view = new AssignTermLayoutView({
                         guid: that.id,
@@ -498,6 +526,12 @@ define(['require',
                 var that = this;
                 require(['views/entity/EntityLabelDefineView'], function(EntityLabelDefineView) {
                     that.REntityLabelDefineView.show(new EntityLabelDefineView(obj));
+                });
+            },
+            renderEntityBusinessMetadataView: function(obj) {
+                var that = this;
+                require(['views/entity/EntityBusinessMetaDataView'], function(EntityBusinessMetaDataView) {
+                    that.REntityBusinessMetadataView.show(new EntityBusinessMetaDataView(obj));
                 });
             },
             renderTagTableLayoutView: function(obj) {
