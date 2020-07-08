@@ -70,7 +70,7 @@ function doLogin() {
         },
         success: function() {
             var indexpath = "index.html";
-            if (window.localStorage.atlas_ui === "beta") {
+            if (window.localStorage.atlas_ui === "beta" || !window.localStorage.atlas_ui) {
                 //load beta version
                 indexpath = '/n/index.html';
             }
