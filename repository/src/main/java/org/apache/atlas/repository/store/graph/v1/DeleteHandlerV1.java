@@ -108,7 +108,13 @@ public abstract class DeleteHandlerV1 {
             // Record all deletion candidate entities in RequestContext
             // and gather deletion candidate vertices.
             for (GraphHelper.VertexInfo vertexInfo : getOwnedVertices(instanceVertex)) {
-                requestContext.recordEntityDelete(vertexInfo.getEntity());
+                AtlasEntityHeader entityHeader = vertexInfo.getEntity();
+
+                if (requestContext.isPurgeRequested()) {
+                    entityHeader.setClassifications(entityRetriever.getAllClassifications(vertexInfo.getVertex()));
+                }
+
+                requestContext.recordEntityDelete(entityHeader);
                 deletionCandidateVertices.add(vertexInfo.getVertex());
             }
         }
@@ -155,9 +161,6 @@ public abstract class DeleteHandlerV1 {
 
                 continue;
             }
-
-            // re-evaluate tag propagation
-            removeTagPropagation(edge);
 
             deleteEdge(edge, isInternal || forceDelete);
         }
@@ -974,10 +977,8 @@ public abstract class DeleteHandlerV1 {
             LOG.debug("Deleting classification vertex", string(classificationVertex));
         }
 
-        List<AtlasEdge> incomingClassificationEdges = getIncomingClassificationEdges(classificationVertex);
-
         // delete classification vertex only if it has no more entity references (direct or propagated)
-        if (CollectionUtils.isEmpty(incomingClassificationEdges)) {
+        if (!hasEntityReferences(classificationVertex)) {
             _deleteVertex(classificationVertex, force);
         }
     }

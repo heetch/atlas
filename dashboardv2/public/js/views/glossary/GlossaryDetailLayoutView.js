@@ -174,7 +174,7 @@ define(['require',
              * @constructs
              */
             initialize: function(options) {
-                _.extend(this, _.pick(options, 'guid', 'glossaryCollection', 'glossary', 'collection', 'typeHeaders', 'value', 'entityDefCollection', 'enumDefCollection', 'classificationDefCollection'));
+                _.extend(this, _.pick(options, 'guid', 'glossaryCollection', 'glossary', 'collection', 'typeHeaders', 'value', 'entityDefCollection', 'enumDefCollection', 'classificationDefCollection', 'searchVent'));
                 if (this.value && this.value.gType) {
                     if (this.value.gType == "category") {
                         this.isCategoryView = true;
@@ -241,6 +241,7 @@ define(['require',
                                         "enumDefCollection": that.enumDefCollection,
                                         "classificationDefCollection": that.classificationDefCollection,
                                         "glossaryCollection": that.glossaryCollection,
+                                        "searchVent": that.searchVent,
                                         "getSelectedTermAttribute": function() {
                                             return that.selectedTermAttribute;
                                         },
@@ -281,7 +282,7 @@ define(['require',
                     categories = "";
                 _.each(data, function(val) {
                     var name = _.escape(val.displayText);
-                    categories += '<span data-guid="' + val.categoryGuid + '"" class="btn btn-action btn-sm btn-icon btn-blue" data-id="categoryClick"><span title=' + name + '>' + name + '</span><i class="fa fa-close" data-id="removeCategory" data-type="category" title="Remove Category"></i></span>';
+                    categories += '<span data-guid="' + val.categoryGuid + '" class="btn btn-action btn-sm btn-icon btn-blue" data-id="categoryClick"><span>' + name + '</span><i class="fa fa-close" data-id="removeCategory" data-type="category" title="Remove Category"></i></span>';
                 });
                 this.ui.categoryList.find("span.btn").remove();
                 this.ui.categoryList.prepend(categories);
@@ -291,7 +292,7 @@ define(['require',
                     terms = "";
                 _.each(data, function(val) {
                     var name = _.escape(val.displayText);
-                    terms += '<span data-guid="' + val.termGuid + '"" class="btn btn-action btn-sm btn-icon btn-blue" data-id="termClick"><span title=' + name + '>' + name + '</span><i class="fa fa-close" data-id="removeTerm" data-type="term" title="Remove Term"></i></span>';
+                    terms += '<span data-guid="' + val.termGuid + '" class="btn btn-action btn-sm btn-icon btn-blue" data-id="termClick"><span>' + name + '</span><i class="fa fa-close" data-id="removeTerm" data-type="term" title="Remove Term"></i></span>';
                 });
                 this.ui.termList.find("span.btn").remove();
                 this.ui.termList.prepend(terms);
@@ -301,7 +302,7 @@ define(['require',
                 var that = this,
                     tagData = "";
                 _.each(tagObject, function(val) {
-                    tagData += '<span class="btn btn-action btn-sm btn-icon btn-blue"  data-id="tagClickTerm"><span title=' + val.typeName + '>' + val.typeName + '</span><i class="fa fa-close" data-id="removeTagTerm" data-type="tag" title="Remove Classification"></i></span>';
+                    tagData += '<span class="btn btn-action btn-sm btn-icon btn-blue" data-id="tagClickTerm"><span>' + val.typeName + '</span><i class="fa fa-close" data-id="removeTagTerm" data-type="tag" title="Remove Classification"></i></span>';
                 });
                 this.ui.tagList.find("span.btn").remove();
                 this.ui.tagList.prepend(tagData);
@@ -376,6 +377,9 @@ define(['require',
                         tagList: tagList,
                         callback: function() {
                             that.getData();
+                            if (that.searchVent) {
+                                that.searchVent.trigger('entityList:refresh');
+                            }
                         },
                         showLoader: that.showLoader.bind(that),
                         hideLoader: that.hideLoader.bind(that),
@@ -389,7 +393,7 @@ define(['require',
                     tagName = $(e.currentTarget).text(),
                     termName = this.data.name;
                 CommonViewFunction.deleteTag(_.extend({}, {
-                    msg: "<div class='ellipsis-with-margin'>Remove: " + "<b>" + _.escape(tagName) + "</b> assignment from" + " " + "<b>" + _.escape(termName) + "?</b></div>",
+                    msg: "<div class='ellipsis-with-margin'>Remove: " + "<b>" + _.escape(tagName) + "</b> assignment from <b>" + _.escape(termName) + "?</b></div>",
                     titleMessage: Messages.removeTag,
                     okText: "Remove",
                     showLoader: that.showLoader.bind(that),
@@ -398,6 +402,9 @@ define(['require',
                     guid: that.guid,
                     callback: function() {
                         that.getData();
+                        if (that.searchVent) {
+                            that.searchVent.trigger('entityList:refresh');
+                        }
                     }
                 }));
             },
@@ -410,7 +417,7 @@ define(['require',
                     selectedGuid: guid,
                     model: that.data,
                     collection: that.glossaryCollection,
-                    msg: "<div class='ellipsis-with-margin'>Remove: " + "<b>" + _.escape(name) + "</b> assignment from" + " " + "<b>" + _.escape(that.data.name) + "?</b></div>",
+                    msg: "<div class='ellipsis-with-margin'>Remove: " + "<b>" + _.escape(name) + "</b> assignment from <b>" + _.escape(that.data.name) + "?</b></div>",
                     titleMessage: Messages.glossary[that.isTermView ? "removeCategoryfromTerm" : "removeTermfromCategory"],
                     isCategoryView: that.isCategoryView,
                     isTermView: that.isTermView,
@@ -433,7 +440,7 @@ define(['require',
                 require(['views/tag/TagDetailTableLayoutView'], function(TagDetailTableLayoutView) {
                     if (that.RTagTableLayoutView) {
                         that.RTagTableLayoutView.show(new TagDetailTableLayoutView(_.extend({}, options, {
-                            "entityName": that.ui.title.text(),
+                            "entityName": _.escape(that.ui.title.text()),
                             "fetchCollection": that.getData.bind(that),
                             "entity": that.data
                         })));
@@ -442,12 +449,7 @@ define(['require',
             },
             renderSearchResultLayoutView: function(options) {
                 var that = this;
-
                 require(['views/search/SearchResultLayoutView'], function(SearchResultLayoutView) {
-                    var value = {
-                        'tag': "PII",
-                        'searchType': 'basic'
-                    };
                     if (that.RSearchResultLayoutView) {
                         that.RSearchResultLayoutView.show(new SearchResultLayoutView(_.extend({}, options, {
                             "value": { "searchType": "basic", "term": that.data.qualifiedName },
