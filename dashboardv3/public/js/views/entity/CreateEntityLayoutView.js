@@ -613,6 +613,16 @@ define(['require',
                             }
                         }
                     }
+                    var relationValue = this.entityData.get("entity").relationshipAttributes[value.name];
+                    if(!entityValue) {
+                        if (_.isObject(relationValue)) {
+                            sample = [{
+                                guid: relationValue.guid,
+                                typeName: relationValue.typeName
+                            }]
+                            entityValue = JSON.stringify(relationValue);
+                        }
+                    }
                 }
                 if ((typeName && this.entityDefCollection.fullCollection.find({ name: typeName })) || typeName === "boolean" || typeName.indexOf("array") > -1) {
                     return this.getSelect({
@@ -873,7 +883,11 @@ define(['require',
                                 if (relationshipType && relationshipType.relationshipAttributes && relationshipType.relationshipAttributes.typeName) {
                                     that.$("select[data-for-key=" + keyData + "]").val(relationshipType.relationshipAttributes.typeName).trigger("change");
                                 }
-
+                            }
+                        } else {
+                            if(!_.isUndefined(relationshipType) && _.isObject(relationshipType) && relationshipType.guid) {
+                                select2Options.push(relationshipType);
+                                selectedValue.push(relationshipType.guid);
                             }
                         }
 
