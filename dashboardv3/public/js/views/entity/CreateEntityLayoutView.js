@@ -885,19 +885,16 @@ define(['require',
                                 }
                             }
                         } else {
-                            if(!_.isUndefined(relationshipType) && _.isObject(relationshipType) && !_.isArray(relationshipType) && relationshipType.guid) {
-                                relationshipType['id'] = relationshipType.guid
-                                select2Options.push(relationshipType);
-                                selectedValue.push(relationshipType.guid);
-                            } else if (!_.isUndefined(relationshipType) && _.isObject(relationshipType) && _.isArray(relationshipType)) {
-                                _.each(relationshipType, function(obj) {
-                                    if (_.isObject(obj) && obj.guid ) {
-                                        obj['id'] = obj.guid
-                                        select2Options.push(obj);
-                                        selectedValue.push(obj.guid);
-                                    }
-                                })
+                            if (_.isObject(relationshipType) && !_.isArray(relationshipType)) {
+                                relationshipType = [relationshipType];
                             }
+                            _.each(relationshipType, function(obj) {
+                                if (_.isObject(obj) && obj.guid ) {
+                                    obj['id'] = obj.guid
+                                    select2Options.push(obj);
+                                    selectedValue.push(obj.guid);
+                                }
+                            })
                         }
 
                         // Array of string.
