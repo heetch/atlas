@@ -881,7 +881,7 @@ define(['require',
                             });
                             if (!_.isUndefined(relationshipType)) {
                                 if (relationshipType && relationshipType.relationshipAttributes && relationshipType.relationshipAttributes.typeName) {
-                                    that.$("select[data-for-key=" + keyData + "]").val(relationshipType.relationshipAttributes.typeName).trigger("change");
+                                    // that.$("select[data-for-key=" + keyData + "]").val(relationshipType.relationshipAttributes.typeName).trigger("change");
                                 }
                             }
                         } else {
