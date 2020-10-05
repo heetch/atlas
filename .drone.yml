@@ -14,7 +14,18 @@ steps:
       region: eu-west-1
     when:
       event: tag
-
+  - name: docker_atlas_raw_branch
+    image: plugins/ecr
+    settings:
+      dockerfile: Dockerfile
+      registry:
+        from_secret: org_ecr_registry
+      repo: atlas
+      tags: ${DRONE_TAG}-atlas-raw
+      region: eu-west-1
+    when:
+      branch:
+        - fun-icons
   - name: docker_atlas_embedded_hbase_solr_release
     image: plugins/ecr
     settings:
