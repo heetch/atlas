@@ -50,15 +50,12 @@ import java.util.stream.Stream;
 public class EntityIconREST {
     private static final Logger PERF_LOG = AtlasPerfTracer.getPerfLogger("rest.EntityIconREST");
 
-    @Context
-    private HttpServletRequest httpServletRequest;
-
     @Inject
     public EntityIconREST() {
     }
 
     @GET
-    public Stream<String> getIcons() throws AtlasBaseException {
+    public Stream<String> getIcons(@Context HttpServletRequest httpServletRequest) throws AtlasBaseException {
         AtlasPerfTracer perf = null;
         try {
             if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
@@ -80,7 +77,7 @@ public class EntityIconREST {
     }
 
     @DELETE
-    public void deleteIcon(@RequestParam("file") String fileName) {
+    public void deleteIcon(@Context HttpServletRequest httpServletRequest, @RequestParam("file") String fileName) {
         AtlasPerfTracer perf = null;
         try {
             if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
@@ -98,7 +95,7 @@ public class EntityIconREST {
     }
 
     @POST
-    public void uploadIcon(@RequestParam("file") MultipartFile file) throws AtlasBaseException {
+    public void uploadIcon(@Context HttpServletRequest httpServletRequest, @RequestParam("file") MultipartFile file) throws AtlasBaseException {
         AtlasPerfTracer perf = null;
         try {
             if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
@@ -108,6 +105,7 @@ public class EntityIconREST {
                 file.transferTo(Paths.get(httpServletRequest.getServletContext().getRealPath("/n/img/entity-icon/"),
                     file.getName()).toFile());
             } catch (IOException e) {
+                e.printStackTrace();
                 throw new AtlasBaseException(AtlasErrorCode.INTERNAL_ERROR, e);
             }
         } finally {
