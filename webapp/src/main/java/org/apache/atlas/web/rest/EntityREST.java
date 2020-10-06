@@ -91,8 +91,8 @@ import java.util.Set;
 @Path("v2/entity")
 @Singleton
 @Service
-@Consumes({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON})
-@Produces({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON})
+@Consumes({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON, MediaType.MULTIPART_FORM_DATA})
+@Produces({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON, MediaType.MULTIPART_FORM_DATA})
 public class EntityREST {
     private static final Logger LOG      = LoggerFactory.getLogger(EntityREST.class);
     private static final Logger PERF_LOG = AtlasPerfTracer.getPerfLogger("rest.EntityREST");
