@@ -31,8 +31,12 @@ import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.stream.Stream;
 
 
 /**
@@ -44,13 +48,53 @@ import java.nio.file.Paths;
 @Consumes({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON})
 @Produces({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON})
 public class EntityIconREST {
-    private static final Logger PERF_LOG = AtlasPerfTracer.getPerfLogger("rest.EntityREST");
+    private static final Logger PERF_LOG = AtlasPerfTracer.getPerfLogger("rest.EntityIconREST");
 
     @Context
     private HttpServletRequest httpServletRequest;
 
     @Inject
     public EntityIconREST() {
+    }
+
+    @GET
+    public Stream<String> getIcons() throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityIconREST.getIcons()");
+            }
+            try {
+                return Files.list(Paths.get(httpServletRequest.getServletContext()
+                    .getRealPath("/n/img/entity-icon/")))
+                    .map(java.nio.file.Path::toAbsolutePath)
+                    .map(java.nio.file.Path::toFile)
+                    .map(File::toString);
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new AtlasBaseException(AtlasErrorCode.INTERNAL_ERROR, e);
+            }
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+    @DELETE
+    public void deleteIcon(@RequestParam("file") String fileName) {
+        AtlasPerfTracer perf = null;
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityIconREST.deleteIcon()");
+            }
+            File icon = Paths.get(httpServletRequest.getServletContext()
+                .getRealPath("/n/img/entity-icon/"), fileName)
+                .toFile();
+            if (icon.exists()) {
+                icon.delete();
+            }
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
     }
 
     @POST
