@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -55,7 +56,7 @@ public class EntityIconREST {
     }
 
     @GET
-    public Stream<String> getIcons(@Context HttpServletRequest httpServletRequest) throws AtlasBaseException {
+    public List<String> getIcons(@Context HttpServletRequest httpServletRequest) throws AtlasBaseException {
         AtlasPerfTracer perf = null;
         try {
             if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
@@ -66,11 +67,27 @@ public class EntityIconREST {
                     .getRealPath("/n/img/entity-icon/")))
                     .map(java.nio.file.Path::toAbsolutePath)
                     .map(java.nio.file.Path::toFile)
-                    .map(File::toString);
+                    .map(File::toString)
+                    .collect(Collectors.toList());
             } catch (IOException e) {
                 e.printStackTrace();
                 throw new AtlasBaseException(AtlasErrorCode.INTERNAL_ERROR, e);
             }
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+    @GET
+    @Path("/realPath")
+    public String getRealPath(@Context HttpServletRequest httpServletRequest) throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityIconREST.deleteIcon()");
+            }
+            return Paths.get(httpServletRequest.getServletContext()
+                .getRealPath("/n/img/entity-icon/")).toAbsolutePath().toString();
         } finally {
             AtlasPerfTracer.log(perf);
         }
