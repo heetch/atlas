@@ -29,6 +29,7 @@ public class ExceptionMapperUtil {
     }
 
     protected static void logException(long id, Exception exception) {
+        exception.printStackTrace();
         LOGGER.error(formatLogMessage(id, exception), exception);
     }
 
