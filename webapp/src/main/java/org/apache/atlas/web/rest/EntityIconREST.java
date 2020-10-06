@@ -16,14 +16,16 @@
  * limitations under the License.
  */
 package org.apache.atlas.web.rest;
+import com.amazonaws.util.Base64;
 import org.apache.atlas.AtlasErrorCode;
 import org.apache.atlas.exception.AtlasBaseException;
 import org.apache.atlas.utils.AtlasPerfTracer;
+import org.apache.atlas.web.model.EntityIcon;
 import org.apache.atlas.web.util.Servlets;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -37,7 +39,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 /**
@@ -50,6 +51,7 @@ import java.util.stream.Stream;
 @Produces({Servlets.JSON_MEDIA_TYPE, MediaType.APPLICATION_JSON})
 public class EntityIconREST {
     private static final Logger PERF_LOG = AtlasPerfTracer.getPerfLogger("rest.EntityIconREST");
+    private static final Logger LOG = LoggerFactory.getLogger(EntityIconREST.class);
 
     @Inject
     public EntityIconREST() {
@@ -112,15 +114,31 @@ public class EntityIconREST {
     }
 
     @POST
-    public void uploadIcon(@Context HttpServletRequest httpServletRequest, @RequestParam("file") MultipartFile file) throws AtlasBaseException {
+    @Path("/test")
+    public void uploadIcon(@Context HttpServletRequest httpServletRequest) throws AtlasBaseException {
+        AtlasPerfTracer perf = null;
+        try {
+            if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
+                perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityIconREST.uploadIcon()");
+            }
+        } finally {
+            AtlasPerfTracer.log(perf);
+        }
+    }
+
+
+    @POST
+    public void uploadIcon(@Context HttpServletRequest httpServletRequest, EntityIcon entityIcon) throws AtlasBaseException {
         AtlasPerfTracer perf = null;
         try {
             if (AtlasPerfTracer.isPerfTraceEnabled(PERF_LOG)) {
                 perf = AtlasPerfTracer.getPerfTracer(PERF_LOG, "EntityIconREST.uploadIcon()");
             }
             try {
-                file.transferTo(Paths.get(httpServletRequest.getServletContext().getRealPath("/n/img/entity-icon/"),
-                    file.getName()).toFile());
+                java.nio.file.Path filePAth = Paths.get(httpServletRequest.getServletContext().getRealPath("/n/img/entity-icon/"),
+                    entityIcon.getFileName());
+                Files.write(filePAth, Base64.decode(entityIcon.getImgBase64()));
+                LOG.info("Wrote entityIcon {}", entityIcon.getFileName());
             } catch (IOException e) {
                 e.printStackTrace();
                 throw new AtlasBaseException(AtlasErrorCode.INTERNAL_ERROR, e);
