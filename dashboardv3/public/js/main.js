@@ -51,17 +51,17 @@ require.config({
     'deps': ['marionette'],
 
     onNodeCreated: function(node, config, moduleName, url) {
-        console.log("module " + moduleName + " is about to be loaded");
+        //console.log("module " + moduleName + " is about to be loaded");
         ++modulesLoadCount;
         showModuleLoader();
         node.addEventListener("load", function() {
-            console.log("module " + moduleName + " has been loaded");
+            //console.log("module " + moduleName + " has been loaded");
             --modulesLoadCount;
             hideModuleLoader();
         });
 
         node.addEventListener("error", function() {
-            console.log("module " + moduleName + " could not be loaded");
+            //console.log("module " + moduleName + " could not be loaded");
             --modulesLoadCount;
             hideModuleLoader();
         });
@@ -128,9 +128,19 @@ require.config({
             'deps': ['d3'],
             'exports': ['d3-tip']
         },
+        'LineageHelper': {
+            'deps': ['d3'],
+        },
         'dagreD3': {
             'deps': ['d3'],
             'exports': ['dagreD3']
+        },
+        'nvd3': {
+            'deps': ['d3']
+        },
+        'sparkline': {
+            'deps': ['jquery'],
+            'exports': ['sparkline']
         },
         'pnotify': {
             'exports': ['pnotify']
@@ -149,13 +159,6 @@ require.config({
         },
         'moment': {
             'exports': ['moment']
-        },
-        'nvd3': {
-            'deps': ['d3']
-        },
-        'sparkline': {
-            'deps': ['jquery'],
-            'exports': ['sparkline']
         },
         'jstree': {
             'deps': ['jquery']
@@ -183,12 +186,15 @@ require.config({
         'asBreadcrumbs': 'libs/jquery-asBreadcrumbs/js/jquery-asBreadcrumbs.min',
         'd3': 'libs/d3/d3.min',
         'd3-tip': 'libs/d3/index',
+        'LineageHelper': 'external_lib/atlas-lineage/dist/index',
+        'dagreD3': 'libs/dagre-d3/dagre-d3.min',
+        'nvd3': 'libs/nvd3/nv.d3.min',
+        'sparkline': 'libs/sparkline/jquery.sparkline.min',
         'tmpl': 'templates',
         'requirejs.text': 'libs/requirejs-text/text',
         'handlebars': 'external_lib/require-handlebars-plugin/js/handlebars',
         'hbs': 'external_lib/require-handlebars-plugin/js/hbs',
         'i18nprecompile': 'external_lib/require-handlebars-plugin/js/i18nprecompile',
-        'dagreD3': 'libs/dagre-d3/dagre-d3.min',
         'select2': 'libs/select2/select2.full.min',
         'backgrid-select-all': 'libs/backgrid-select-all/backgrid-select-all.min',
         'moment': 'libs/moment/js/moment.min',
@@ -201,12 +207,11 @@ require.config({
         'platform': 'libs/platform/platform',
         'query-builder': 'libs/jQueryQueryBuilder/js/query-builder.standalone.min',
         'daterangepicker': 'libs/bootstrap-daterangepicker/js/daterangepicker',
-        'nvd3': 'libs/nvd3/nv.d3.min',
-        'sparkline': 'libs/sparkline/jquery.sparkline.min',
         'table-dragger': 'libs/table-dragger/table-dragger',
         'jstree': 'libs/jstree/jstree.min',
         'jquery-steps': 'libs/jquery-steps/jquery.steps.min',
-        'dropzone': 'libs/dropzone/js/dropzone-amd-module'
+        'dropzone': 'libs/dropzone/js/dropzone-amd-module',
+        'lossless-json': 'libs/lossless-json/lossless-json'
     },
 
     /**
@@ -348,7 +353,6 @@ require(['App',
             startApp();
         }
     });
-
     this.businessMetadataDefCollection.fetch({
         complete: function() {
             that.businessMetadataDefCollection.fullCollection.comparator = function(model) {

@@ -201,6 +201,10 @@ public class EntityGraphRetriever {
         return toAtlasEntityHeader(getEntityVertex(guid));
     }
 
+    public AtlasEntityHeader toAtlasEntityHeader(String guid, Set<String> attributes) throws AtlasBaseException {
+        return toAtlasEntityHeader(getEntityVertex(guid), attributes);
+    }
+
     public AtlasEntityHeader toAtlasEntityHeader(AtlasVertex entityVertex) throws AtlasBaseException {
         return toAtlasEntityHeader(entityVertex, Collections.<String>emptySet());
     }
@@ -1348,12 +1352,11 @@ public class EntityGraphRetriever {
                 break;
         }
 
-        if (ret != null) {
-            entity.setRelationshipAttribute(attributeName, ret);
+        // Set Relationship attributes, even if the value is null
+        entity.setRelationshipAttribute(attributeName, ret);
 
-            if (attributeEndDef.getIsLegacyAttribute() && !entity.hasAttribute(attributeName)) {
-                entity.setAttribute(attributeName, toLegacyAttribute(ret));
-            }
+        if (attributeEndDef.getIsLegacyAttribute() && !entity.hasAttribute(attributeName)) {
+            entity.setAttribute(attributeName, toLegacyAttribute(ret));
         }
 
         return ret;

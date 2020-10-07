@@ -16,29 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.atlas.store;
-
-import org.apache.commons.lang.StringUtils;
-
-public enum DeleteType {
-    DEFAULT,
-    SOFT,
-    HARD;
-
-    public static DeleteType from(String s) {
-        if(StringUtils.isEmpty(s)) {
-            return DEFAULT;
-        }
-
-        switch (s.toLowerCase()) {
-            case "soft":
-                return SOFT;
-
-            case "hard":
-                return HARD;
-
-            default:
-                return DEFAULT;
-        }
-    }
-}
+export default {
+	entityStateReadOnly: {
+		ACTIVE: false,
+		DELETED: true,
+		STATUS_ACTIVE: false,
+		STATUS_DELETED: true
+	}
+};

@@ -24,10 +24,11 @@ define([
     "models/VEntity",
     "utils/Utils",
     "utils/Messages",
+    "utils/Enums",
     "utils/CommonViewFunction",
     "moment",
     "utils/Globals"
-], function(require, Backbone, EntityBusinessMetaDataView_tmpl, EntityBusinessMetaDataItemView, VEntity, Utils, Messages, CommonViewFunction, moment, Globals) {
+], function(require, Backbone, EntityBusinessMetaDataView_tmpl, EntityBusinessMetaDataItemView, VEntity, Utils, Messages, Enums, CommonViewFunction, moment, Globals) {
     "use strict";
 
     return Backbone.Marionette.CompositeView.extend({
@@ -42,6 +43,11 @@ define([
                 businessMetadataCollection: this.businessMetadataCollection,
                 enumDefCollection: this.enumDefCollection
             };
+        },
+        templateHelpers: function() {
+            return {
+                readOnlyEntity: this.readOnlyEntity
+            }
         },
         /** ui selector cache */
         ui: {
@@ -63,6 +69,7 @@ define([
             var that = this;
             _.extend(this, _.pick(options, "entity", "businessMetadataCollection", "enumDefCollection", "guid", "fetchCollection"));
             this.editMode = false;
+            this.readOnlyEntity = Enums.entityStateReadOnly[this.entity.status];
             this.$("editBox").hide();
             this.actualCollection = new Backbone.Collection(
                 _.map(this.entity.businessAttributes, function(val, key) {
@@ -229,11 +236,11 @@ define([
                             newVal = val.value;
                             if (newVal.length > 0 && val.typeName.indexOf("date") > -1) {
                                 newVal = _.map(newVal, function(dates) {
-                                    return moment(dates).format(Globals.dateFormat);
+                                    return Utils.formatDate({ date: dates, zone: false, dateFormat: Globals.dateFormat });
                                 });
                             }
                             if (val.typeName === "date") {
-                                newVal = moment(newVal).format(Globals.dateFormat);
+                                newVal = Utils.formatDate({ date: newVal, zone: false, dateFormat: Globals.dateFormat });
                             }
 
                         }
@@ -243,7 +250,7 @@ define([
                 li += that.associateAttributePanel(obj, attrLi);
             });
             var html = li;
-            if (html === "") {
+            if (html === "" && this.readOnlyEntity === false) {
                 html = '<div class="col-md-12"> No business metadata have been created yet. To add a business metadata, click <a href="javascript:void(0)" data-id="addBusinessMetadata">here</a></div>';
             }
             this.ui.businessMetadataTree.html(html);
@@ -255,7 +262,7 @@ define([
                 '<div class="btn-group pull-left"> <button type="button" title="Collapse"><i class="ec-icon fa"></i></button></div>' +
                 '</div>' +
                 '<div id="' + _.escape(obj.get("__internal_UI_businessMetadataName")) + '" class="panel-collapse collapse in">' +
-                '<div class="panel-body"><table class="table">' + tableBody + '</table></div>' +
+                '<div class="panel-body"><table class="table bold-key">' + tableBody + '</table></div>' +
                 '</div></div>';
         },
         onRender: function() {

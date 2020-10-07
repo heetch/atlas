@@ -18,8 +18,10 @@
 package org.apache.atlas.repository.graphdb.janus;
 
 import com.google.common.base.Preconditions;
+import org.apache.atlas.AtlasConfiguration;
 import org.apache.atlas.repository.graphdb.AtlasEdgeDirection;
 import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.apache.tinkerpop.gremlin.structure.Element;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.EdgeLabel;
 import org.janusgraph.core.PropertyKey;
@@ -45,6 +47,7 @@ import java.util.Set;
  * Janus implementation of AtlasGraphManagement.
  */
 public class AtlasJanusGraphManagement implements AtlasGraphManagement {
+    private static final boolean lockEnabled = AtlasConfiguration.STORAGE_CONSISTENCY_LOCK_ENABLED.getBoolean();
     private static final Parameter[] STRING_PARAMETER_ARRAY = new Parameter[]{Mapping.STRING.asParameter()};
 
     private static final Logger LOG            = LoggerFactory.getLogger(AtlasJanusGraphManagement.class);
@@ -245,23 +248,16 @@ public class AtlasJanusGraphManagement implements AtlasGraphManagement {
 
     @Override
     public void createVertexCompositeIndex(String propertyName, boolean isUnique, List<AtlasPropertyKey> propertyKeys) {
-        IndexBuilder indexBuilder = management.buildIndex(propertyName, Vertex.class);
-
-        for (AtlasPropertyKey key : propertyKeys) {
-            PropertyKey janusKey = AtlasJanusObjectFactory.createPropertyKey(key);
-            indexBuilder.addKey(janusKey);
-        }
-
-        if (isUnique) {
-            indexBuilder.unique();
-        }
-
-        indexBuilder.buildCompositeIndex();
+        createCompositeIndex(propertyName, isUnique, propertyKeys, Vertex.class);
     }
 
     @Override
     public void createEdgeCompositeIndex(String propertyName, boolean isUnique, List<AtlasPropertyKey> propertyKeys) {
-        IndexBuilder indexBuilder = management.buildIndex(propertyName, Edge.class);
+        createCompositeIndex(propertyName, isUnique, propertyKeys, Edge.class);
+    }
+
+    private void createCompositeIndex(String propertyName, boolean isUnique, List<AtlasPropertyKey> propertyKeys, Class<? extends Element> elementType) {
+        IndexBuilder indexBuilder = management.buildIndex(propertyName, elementType);
 
         for (AtlasPropertyKey key : propertyKeys) {
             PropertyKey janusKey = AtlasJanusObjectFactory.createPropertyKey(key);
@@ -272,6 +268,44 @@ public class AtlasJanusGraphManagement implements AtlasGraphManagement {
             indexBuilder.unique();
         }
 
-        indexBuilder.buildCompositeIndex();
+        JanusGraphIndex index = indexBuilder.buildCompositeIndex();
+
+        if (lockEnabled && isUnique) {
+            management.setConsistency(index, ConsistencyModifier.LOCK);
+        }
+    }
+
+    @Override
+    public void updateUniqueIndexesForConsistencyLock() {
+        try {
+            setConsistency(this.management, Vertex.class);
+            setConsistency(this.management, Edge.class);
+        } finally {
+            commit();
+        }
+    }
+
+    private static void setConsistency(JanusGraphManagement mgmt, Class<? extends Element> elementType) {
+        LOG.info("setConsistency: {}: Starting...", elementType.getSimpleName());
+        int count = 0;
+
+        try {
+            Iterable<JanusGraphIndex> iterable = mgmt.getGraphIndexes(elementType);
+            for (JanusGraphIndex index : iterable) {
+                if (!index.isCompositeIndex() || !index.isUnique() || mgmt.getConsistency(index) == ConsistencyModifier.LOCK) {
+                    continue;
+                }
+
+                for (PropertyKey propertyKey : index.getFieldKeys()) {
+                    LOG.info("setConsistency: {}: {}", count, propertyKey.name());
+                }
+
+                mgmt.setConsistency(index, ConsistencyModifier.LOCK);
+                count++;
+            }
+        }
+        finally {
+            LOG.info("setConsistency: {}: {}: Done!", elementType.getSimpleName(), count);
+        }
     }
 }

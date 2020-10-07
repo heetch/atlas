@@ -59,6 +59,16 @@
         </profile>
 
         <profile>
+            <id>berkeley-solr</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <properties>
+                <packages.to.exclude>WEB-INF/lib/dom4j-*.jar</packages.to.exclude>
+            </properties>
+        </profile>
+
+        <profile>
             <id>Windows</id>
             <activation>
                 <os>
@@ -458,13 +468,13 @@
         <dependency>
             <groupId>org.kohsuke</groupId>
             <artifactId>libpam4j</artifactId>
-            <version>1.8</version>
+            <version>1.11</version>
         </dependency>
 
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>4.1.0</version>
+            <version>5.2.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
@@ -741,6 +751,7 @@
                                 <resource>
                                     <directory>${basedir}/../addons/models/</directory>
                                     <includes>
+                                        <include>0000-Area0/0011-glossary_model.json</include>
                                         <include>0000-Area0/0010-base_model.json</include>
                                         <include>1000-Hadoop/**</include>
                                     </includes>

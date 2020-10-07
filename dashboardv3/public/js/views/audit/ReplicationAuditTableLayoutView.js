@@ -29,7 +29,7 @@ define(['require',
     'use strict';
 
     var ReplicationAuditTableLayoutView = Backbone.Marionette.LayoutView.extend(
-        /** @lends TagDetailTableLayoutView */
+        /** @lends ReplicationAuditTableLayoutView */
         {
             _viewName: 'ReplicationAuditTableLayoutView',
 
@@ -48,7 +48,7 @@ define(['require',
                 return events;
             },
             /**
-             * intialize a new TagDetailTableLayoutView Layout
+             * intialize a new ReplicationAuditTableLayoutView Layout
              * @constructs
              */
             initialize: function(options) {
@@ -166,7 +166,7 @@ define(['require',
                     formatter: _.extend({}, Backgrid.CellFormatter.prototype, {
                         fromRaw: function(rawValue, model) {
                             if (rawValue) {
-                                return new Date(rawValue);
+                                return Utils.formatDate({ date: rawValue });
                             } else {
                                 return '-';
                             }
@@ -181,7 +181,7 @@ define(['require',
                     formatter: _.extend({}, Backgrid.CellFormatter.prototype, {
                         fromRaw: function(rawValue, model) {
                             if (rawValue) {
-                                return new Date(rawValue);
+                                return Utils.formatDate({ date: rawValue });
                             } else {
                                 return '-';
                             }
